@@ -1,0 +1,56 @@
+name: Build SATISFY Health Reader v0.3
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Gradle 8.9
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Rebuild Android project structure
+        shell: bash
+        run: |
+          echo "===== ROOT FILES ====="
+          ls -la
+
+          mkdir -p app/libs
+          mkdir -p app/src/main/java/com/satisfy/healthreader
+          mkdir -p app/src/main/res/values
+
+          cp samsung-health-data-api-1.1.0.aar \
+            app/libs/samsung-health-data-api-1.1.0.aar
+
+          cp AndroidManifest.xml \
+            app/src/main/AndroidManifest.xml
+
+          cp MainActivity.kt \
+            app/src/main/java/com/satisfy/healthreader/MainActivity.kt
+
+          cp styles.xml \
+            app/src/main/res/values/styles.xml
+
+          echo "===== REBUILT PROJECT ====="
+          find app -type f | sort
+
+      - name: Write root build.gradle.kts
+        shell: bash
+        run: |
+          cat >
