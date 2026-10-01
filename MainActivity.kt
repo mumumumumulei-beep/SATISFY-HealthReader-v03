@@ -1,120 +1,242 @@
 package com.satisfy.healthreader
 
 import android.os.Bundle
-import android.view.Gravity
 import android.widget.Button
 import android.widget.LinearLayout
+import android.widget.ScrollView
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
-import androidx.lifecycle.lifecycleScope
-import com.samsung.android.sdk.health.data.HealthDataService
-import com.samsung.android.sdk.health.data.HealthDataStore
-import com.samsung.android.sdk.health.data.permission.AccessType
-import com.samsung.android.sdk.health.data.permission.Permission
-import com.samsung.android.sdk.health.data.request.DataType
-import com.samsung.android.sdk.health.data.request.DataTypes
-import com.samsung.android.sdk.health.data.request.LocalDateFilter
-import com.samsung.android.sdk.health.data.request.LocalTimeFilter
-import com.samsung.android.sdk.health.data.request.Ordering
-import kotlinx.coroutines.launch
-import java.time.LocalDate
-import java.time.LocalDateTime
 
 class MainActivity : AppCompatActivity() {
-    private lateinit var store: HealthDataStore
-    private lateinit var status: TextView
-    private lateinit var energy: TextView
-    private lateinit var sleep: TextView
 
-    private val permissions by lazy {
-        setOf(
-            Permission.of(DataTypes.ENERGY_SCORE, AccessType.READ),
-            Permission.of(DataTypes.SLEEP, AccessType.READ)
-        )
-    }
+    private lateinit var status: TextView
+    private lateinit var log: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        store = HealthDataService.getStore(this)
-        setContentView(buildUi())
-        checkPermissionsAndRead(false)
+
+        // 诊断版启动阶段故意完全不调用 Samsung Health SDK。
+        // 第一目标：确认 Activity 本身可以稳定运行。
+        buildUi()
     }
 
-    private fun buildUi(): LinearLayout {
-        fun label(text: String, size: Float) = TextView(this).apply {
-            this.text = text
-            textSize = size
-            setPadding(0, 18, 0, 8)
-        }
+    private fun buildUi() {
+        val density = resources.displayMetrics.density
+        fun dp(value: Int) = (value * density).toInt()
 
-        return LinearLayout(this).apply {
+        val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER_HORIZONTAL
-            setPadding(48, 80, 48, 48)
-
-            addView(label("SATISFY HEALTH READER", 24f))
-            status = label("Samsung Health: checking…", 16f); addView(status)
-            addView(label("ENERGY SCORE", 16f))
-            energy = label("--", 44f); addView(energy)
-            addView(label("SLEEP SCORE", 16f))
-            sleep = label("--", 44f); addView(sleep)
-
-            addView(Button(this@MainActivity).apply {
-                text = "授权 Samsung Health"
-                setOnClickListener { checkPermissionsAndRead(true) }
-            })
-            addView(Button(this@MainActivity).apply {
-                text = "刷新数据"
-                setOnClickListener { checkPermissionsAndRead(false) }
-            })
+            setPadding(dp(24), dp(30), dp(24), dp(30))
         }
-    }
 
-    private fun checkPermissionsAndRead(requestIfMissing: Boolean) {
-        lifecycleScope.launch {
-            try {
-                status.text = "Samsung Health: checking permissions…"
-                var granted = store.getGrantedPermissions(permissions)
-                if (!granted.containsAll(permissions) && requestIfMissing) {
-                    granted = store.requestPermissions(permissions, this@MainActivity)
+        val title = TextView(this).apply {
+            text = "SATISFY HEALTH READER"
+            textSize = 24f
+        }
+
+        val version = TextView(this).apply {
+            text = "v0.3.1 SAFE DIAGNOSTIC"
+            textSize = 14f
+            setPadding(0, dp(6), 0, dp(24))
+        }
+
+        status = TextView(this).apply {
+            text = """
+APP START              OK
+
+SAMSUNG HEALTH SDK     NOT STARTED
+
+ENERGY SCORE           --
+SLEEP SCORE            --
+            """.trimIndent()
+
+            textSize = 17f
+            setPadding(0, 0, 0, dp(20))
+        }
+
+        val testAppButton = Button(this).apply {
+            text = "1  测试 APP"
+            setOnClickListener {
+                safeRun("APP TEST") {
+                    status.text = """
+APP START              OK
+APP TEST               OK
+
+SAMSUNG HEALTH SDK     NOT STARTED
+
+ENERGY SCORE           --
+SLEEP SCORE            --
+                    """.trimIndent()
+
+                    appendLog("APP TEST OK")
                 }
-                if (!granted.containsAll(permissions)) {
-                    status.text = "Samsung Health: permission required"
-                    energy.text = "--"; sleep.text = "--"
-                    return@launch
-                }
-                status.text = "Samsung Health: connected"
-                readScores()
-            } catch (e: Exception) {
-                status.text = "ERROR: ${e.javaClass.simpleName}: ${e.message ?: "unknown"}"
             }
         }
+
+        val sdkButton = Button(this).apply {
+            text = "2  测试 SAMSUNG HEALTH SDK"
+            setOnClickListener {
+                testSamsungSdkClass()
+            }
+        }
+
+        val permissionButton = Button(this).apply {
+            text = "3  权限测试（暂不执行）"
+            setOnClickListener {
+                appendLog(
+                    "PERMISSION TEST BLOCKED\n" +
+                    "v0.3.1 暂时不调用 requestPermissions()."
+                )
+            }
+        }
+
+        val energyButton = Button(this).apply {
+            text = "4  ENERGY 测试（暂不执行）"
+            setOnClickListener {
+                appendLog(
+                    "ENERGY READ BLOCKED\n" +
+                    "等待 SDK 基础测试通过。"
+                )
+            }
+        }
+
+        val sleepButton = Button(this).apply {
+            text = "5  SLEEP 测试（暂不执行）"
+            setOnClickListener {
+                appendLog(
+                    "SLEEP READ BLOCKED\n" +
+                    "等待 SDK 基础测试通过。"
+                )
+            }
+        }
+
+        val clearButton = Button(this).apply {
+            text = "清空诊断日志"
+            setOnClickListener {
+                log.text = ""
+            }
+        }
+
+        val logTitle = TextView(this).apply {
+            text = "\nDIAGNOSTIC LOG"
+            textSize = 18f
+        }
+
+        log = TextView(this).apply {
+            text = """
+启动成功。
+当前版本不会在启动时访问 Samsung Health。
+请先点击：
+
+1 测试 APP
+2 测试 SAMSUNG HEALTH SDK
+            """.trimIndent()
+
+            textSize = 14f
+            setPadding(0, dp(10), 0, dp(40))
+            setTextIsSelectable(true)
+        }
+
+        root.addView(title)
+        root.addView(version)
+        root.addView(status)
+        root.addView(testAppButton)
+        root.addView(sdkButton)
+        root.addView(permissionButton)
+        root.addView(energyButton)
+        root.addView(sleepButton)
+        root.addView(clearButton)
+        root.addView(logTitle)
+        root.addView(log)
+
+        val scroll = ScrollView(this)
+        scroll.addView(root)
+
+        setContentView(scroll)
     }
 
-    private suspend fun readScores() {
-        energy.text = "…"; sleep.text = "…"
+    private fun testSamsungSdkClass() {
+        safeRun("SAMSUNG HEALTH SDK CLASS TEST") {
 
-        val today = LocalDate.now()
-        val energyRequest = DataTypes.ENERGY_SCORE.readDataRequestBuilder
-            .setLocalDateFilter(LocalDateFilter.of(today.minusDays(1), today))
-            .setOrdering(Ordering.DESC)
-            .setLimit(2)
-            .build()
-        val energyResult = store.readData(energyRequest).dataList
-        val e = energyResult.firstOrNull()?.getValue(DataType.EnergyScoreType.ENERGY_SCORE)
-        energy.text = e?.let { Math.round(it).toString() } ?: "--"
+            val clazz = Class.forName(
+                "com.samsung.android.sdk.health.data.HealthDataService"
+            )
 
-        val now = LocalDateTime.now()
-        val sleepRequest = DataTypes.SLEEP.readDataRequestBuilder
-            .setLocalTimeFilter(LocalTimeFilter.of(now.minusHours(48), now))
-            .setOrdering(Ordering.DESC)
-            .setLimit(10)
-            .build()
-        val sleepResult = store.readData(sleepRequest).dataList
-        val s = sleepResult.firstNotNullOfOrNull {
-            it.getValue(DataType.SleepType.SLEEP_SCORE)
+            appendLog(
+                "SDK CLASS FOUND\n" +
+                "Class = ${clazz.name}"
+            )
+
+            status.text = """
+APP START              OK
+SDK AAR                FOUND
+SDK CLASS              OK
+
+PERMISSION             NOT TESTED
+ENERGY SCORE           --
+SLEEP SCORE            --
+            """.trimIndent()
         }
-        sleep.text = s?.toString() ?: "--"
-        status.text = "Samsung Health: connected • refreshed"
+    }
+
+    private fun safeRun(
+        name: String,
+        action: () -> Unit
+    ) {
+        try {
+            action()
+        } catch (t: Throwable) {
+
+            val root = rootCause(t)
+
+            appendLog(
+                """
+$name ERROR
+
+Exception:
+${t.javaClass.name}
+
+Message:
+${t.message ?: "(no message)"}
+
+ROOT CAUSE:
+${root.javaClass.name}
+
+ROOT MESSAGE:
+${root.message ?: "(no message)"}
+
+------------------------------
+                """.trimIndent()
+            )
+
+            status.text = """
+APP START              OK
+$name                  ERROR
+
+${root.javaClass.simpleName}
+
+ENERGY SCORE           --
+SLEEP SCORE            --
+            """.trimIndent()
+        }
+    }
+
+    private fun rootCause(t: Throwable): Throwable {
+        var current = t
+
+        while (
+            current.cause != null &&
+            current.cause !== current
+        ) {
+            current = current.cause!!
+        }
+
+        return current
+    }
+
+    private fun appendLog(message: String) {
+        log.append(
+            "\n\n$message\n"
+        )
     }
 }
