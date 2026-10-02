@@ -1,93 +1,87 @@
-name: Build SATISFY Health Bridge v0.4.0
+name: SATISFY v0.4.1 PHONE + WATCH
 
 on:
   workflow_dispatch:
 
-  push:
-    branches:
-      - main
-
-
 jobs:
-
   build:
-
     runs-on: ubuntu-latest
 
-
     steps:
-
       - name: Checkout
         uses: actions/checkout@v4
 
-
-      - name: Setup Java 17
+      - name: Java 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
 
-
-      - name: Setup Gradle 8.9
+      - name: Gradle 8.9
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
 
-
-      - name: Rebuild Android project structure
+      - name: Verify frozen PHONE baseline
         shell: bash
         run: |
-          set -e
+          set -euo pipefail
+          test -f MainActivity.kt
+          test -f AndroidManifest.xml
+          test -f styles.xml
+          test -f samsung-health-data-api-1.1.0.aar
+          grep -Fq '"/satisfy/health_scores"' MainActivity.kt
+          grep -Fq '"8  CHECK WATCH CONNECTION"' MainActivity.kt
+          grep -Fq '"9  SEND SCORES TO WATCH"' MainActivity.kt
+          grep -Fq '.putDataItem(' MainActivity.kt
+          grep -Fq 'DataTypes.ENERGY_SCORE' MainActivity.kt
+          grep -Fq 'DataTypes.SLEEP' MainActivity.kt
+          echo "PHONE v0.4.0 baseline verified."
 
-          echo "===== CLEAN ====="
-
-          rm -rf app
-          rm -rf apk-output
-
-
-          echo "===== CREATE ====="
-
-          mkdir -p app/libs
-          mkdir -p app/src/main/java/com/satisfy/healthreader
-          mkdir -p app/src/main/res/values
-
-
-          echo "===== COPY SAMSUNG SDK ====="
-
-          cp samsung-health-data-api-1.1.0.aar \
-            app/libs/samsung-health-data-api-1.1.0.aar
-
-
-          echo "===== COPY APP FILES ====="
-
-          cp AndroidManifest.xml \
-            app/src/main/AndroidManifest.xml
-
-          cp MainActivity.kt \
-            app/src/main/java/com/satisfy/healthreader/MainActivity.kt
-
-          cp styles.xml \
-            app/src/main/res/values/styles.xml
-
-
-          echo "===== FILE LIST ====="
-
-          find app -type f | sort
-
-
-          echo "===== SAMSUNG SDK ====="
-
-          ls -lh \
-            app/libs/samsung-health-data-api-1.1.0.aar
-
-          sha256sum \
-            app/libs/samsung-health-data-api-1.1.0.aar
-
-
-      - name: Write root Gradle files
+      - name: Create one shared signing key for this build
         shell: bash
         run: |
-          set -e
+          set -euo pipefail
+          keytool -genkeypair \
+            -keystore "$GITHUB_WORKSPACE/satisfy-v041.jks" \
+            -storepass satisfy041 \
+            -keypass satisfy041 \
+            -alias satisfy041 \
+            -keyalg RSA -keysize 2048 -validity 10000 \
+            -dname "CN=SATISFY Health Bridge,O=SATISFY,C=US"
+
+      - name: Generate Gradle project and WATCH receiver
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf app wear build-out
+          mkdir -p app/libs app/src/main/java/com/satisfy/healthreader app/src/main/res/values
+          mkdir -p wear/src/main/java/com/satisfy/healthreader wear/src/main/res/values wear/src/main/res/drawable
+
+          # PHONE: copy, do not rewrite the proven source.
+          cp MainActivity.kt app/src/main/java/com/satisfy/healthreader/MainActivity.kt
+          cp AndroidManifest.xml app/src/main/AndroidManifest.xml
+          cp styles.xml app/src/main/res/values/styles.xml
+          cp samsung-health-data-api-1.1.0.aar app/libs/
+
+          cat > settings.gradle.kts <<'EOF'
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          rootProject.name = "SATISFY-v041"
+          include(":app", ":wear")
+          EOF
 
           cat > build.gradle.kts <<'EOF'
           plugins {
@@ -97,50 +91,11 @@ jobs:
           }
           EOF
 
-
-          cat > settings.gradle.kts <<'EOF'
-          pluginManagement {
-
-              repositories {
-                  google()
-                  mavenCentral()
-                  gradlePluginPortal()
-              }
-          }
-
-
-          dependencyResolutionManagement {
-
-              repositoriesMode.set(
-                  RepositoriesMode.FAIL_ON_PROJECT_REPOS
-              )
-
-              repositories {
-                  google()
-                  mavenCentral()
-              }
-          }
-
-
-          rootProject.name =
-              "SATISFY-HealthBridge-v040"
-
-
-          include(":app")
-          EOF
-
-
           cat > gradle.properties <<'EOF'
           org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
           android.useAndroidX=true
           kotlin.code.style=official
           EOF
-
-
-      - name: Write app Gradle
-        shell: bash
-        run: |
-          set -e
 
           cat > app/build.gradle.kts <<'EOF'
           plugins {
@@ -149,313 +104,568 @@ jobs:
               id("org.jetbrains.kotlin.plugin.parcelize")
           }
 
-
           android {
-
-              namespace =
-                  "com.satisfy.healthreader"
-
-
-              compileSdk =
-                  35
-
+              namespace = "com.satisfy.healthreader"
+              compileSdk = 35
 
               defaultConfig {
-
-                  applicationId =
-                      "com.satisfy.healthreader"
-
-                  minSdk =
-                      29
-
-                  targetSdk =
-                      35
-
-                  versionCode =
-                      40
-
-                  versionName =
-                      "0.4.0"
+                  applicationId = "com.satisfy.healthreader"
+                  minSdk = 29
+                  targetSdk = 35
+                  versionCode = 41
+                  versionName = "0.4.1"
               }
 
-
-              compileOptions {
-
-                  sourceCompatibility =
-                      JavaVersion.VERSION_17
-
-                  targetCompatibility =
-                      JavaVersion.VERSION_17
-              }
-
-
-              kotlinOptions {
-
-                  jvmTarget =
-                      "17"
-              }
-
-
-              buildTypes {
-
-                  debug {
-
-                      isMinifyEnabled =
-                          false
+              signingConfigs {
+                  create("shared") {
+                      storeFile = rootProject.file("satisfy-v041.jks")
+                      storePassword = "satisfy041"
+                      keyAlias = "satisfy041"
+                      keyPassword = "satisfy041"
                   }
               }
+
+              buildTypes {
+                  debug {
+                      isMinifyEnabled = false
+                      signingConfig = signingConfigs.getByName("shared")
+                  }
+              }
+
+              compileOptions {
+                  sourceCompatibility = JavaVersion.VERSION_17
+                  targetCompatibility = JavaVersion.VERSION_17
+              }
+              kotlinOptions { jvmTarget = "17" }
           }
 
-
           dependencies {
-
-              /*
-               * Samsung Health Data SDK 1.1.0
-               */
-
-              implementation(
-                  files(
-                      "libs/samsung-health-data-api-1.1.0.aar"
-                  )
-              )
-
-
-              /*
-               * Samsung SDK runtime
-               */
-
-              implementation(
-                  "org.jetbrains.kotlin:kotlin-parcelize-runtime:2.0.21"
-              )
-
-
-              implementation(
-                  "com.google.code.gson:gson:2.11.0"
-              )
-
-
-              implementation(
-                  "org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0"
-              )
-
-
-              implementation(
-                  "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0"
-              )
-
-
-              /*
-               * Android
-               */
-
-              implementation(
-                  "androidx.core:core-ktx:1.15.0"
-              )
-
-
-              implementation(
-                  "androidx.appcompat:appcompat:1.7.0"
-              )
-
-
-              implementation(
-                  "com.google.android.material:material:1.12.0"
-              )
-
-
-              implementation(
-                  "androidx.lifecycle:lifecycle-runtime-ktx:2.8.7"
-              )
-
-
-              /*
-               * Wear OS Data Layer
-               */
-
-              implementation(
-                  "com.google.android.gms:play-services-wearable:18.2.0"
-              )
-
-
-              /*
-               * Task.await()
-               */
-
-              implementation(
-                  "org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.9.0"
-              )
+              implementation(files("libs/samsung-health-data-api-1.1.0.aar"))
+              implementation("org.jetbrains.kotlin:kotlin-parcelize-runtime:2.0.21")
+              implementation("com.google.code.gson:gson:2.11.0")
+              implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
+              implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
+              implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.9.0")
+              implementation("androidx.core:core-ktx:1.15.0")
+              implementation("androidx.appcompat:appcompat:1.7.0")
+              implementation("com.google.android.material:material:1.12.0")
+              implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
+              implementation("com.google.android.gms:play-services-wearable:20.0.1")
           }
           EOF
 
+          cat > wear/build.gradle.kts <<'EOF'
+          plugins {
+              id("com.android.application")
+              id("org.jetbrains.kotlin.android")
+          }
 
-      - name: Verify Gradle configuration
-        shell: bash
-        run: |
-          set -e
+          android {
+              namespace = "com.satisfy.healthreader"
+              compileSdk = 35
 
+              defaultConfig {
+                  applicationId = "com.satisfy.healthreader"
+                  minSdk = 30
+                  targetSdk = 35
+                  versionCode = 41
+                  versionName = "0.4.1"
+              }
 
-          echo "===== VERSION ====="
+              signingConfigs {
+                  create("shared") {
+                      storeFile = rootProject.file("satisfy-v041.jks")
+                      storePassword = "satisfy041"
+                      keyAlias = "satisfy041"
+                      keyPassword = "satisfy041"
+                  }
+              }
 
-          grep -n "versionCode" \
-            app/build.gradle.kts
+              buildTypes {
+                  debug {
+                      isMinifyEnabled = false
+                      signingConfig = signingConfigs.getByName("shared")
+                  }
+              }
 
-          grep -n "versionName" \
-            app/build.gradle.kts
+              compileOptions {
+                  sourceCompatibility = JavaVersion.VERSION_17
+                  targetCompatibility = JavaVersion.VERSION_17
+              }
+              kotlinOptions { jvmTarget = "17" }
+          }
 
+          dependencies {
+              implementation("androidx.core:core-ktx:1.15.0")
+              implementation("androidx.appcompat:appcompat:1.7.0")
+              implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
+              implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
+              implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.9.0")
+              implementation("com.google.android.gms:play-services-wearable:20.0.1")
+              implementation("androidx.wear.watchface:watchface-complications-data-source:1.2.1")
+          }
+          EOF
 
-          echo "===== SAMSUNG RUNTIME ====="
+          cat > wear/src/main/res/values/strings.xml <<'EOF'
+          <resources>
+              <string name="app_name">SATISFY Health Bridge</string>
+              <string name="energy_provider">SATISFY Energy</string>
+              <string name="sleep_provider">SATISFY Sleep</string>
+          </resources>
+          EOF
 
-          grep -n "parcelize" \
-            app/build.gradle.kts
+          cat > wear/src/main/res/values/styles.xml <<'EOF'
+          <resources>
+              <style name="AppTheme" parent="android:style/Theme.Material.NoActionBar">
+                  <item name="android:windowBackground">#000000</item>
+                  <item name="android:fontFamily">sans</item>
+                  <item name="android:colorAccent">#FFFFFF</item>
+              </style>
+          </resources>
+          EOF
 
-          grep -n "gson" \
-            app/build.gradle.kts
+          cat > wear/src/main/res/drawable/ic_provider.xml <<'EOF'
+          <vector xmlns:android="http://schemas.android.com/apk/res/android"
+              android:width="24dp"
+              android:height="24dp"
+              android:viewportWidth="24"
+              android:viewportHeight="24">
+              <path
+                  android:fillColor="#FFFFFFFF"
+                  android:pathData="M12,2A10,10 0,1 0,12 22A10,10 0,0 0,12 2M11,6h2v7h-2zM11,15h2v2h-2z"/>
+          </vector>
+          EOF
 
-          grep -n "coroutines" \
-            app/build.gradle.kts
+          cat > wear/src/main/AndroidManifest.xml <<'EOF'
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <uses-feature android:name="android.hardware.type.watch" android:required="true"/>
 
+              <application
+                  android:allowBackup="false"
+                  android:label="@string/app_name"
+                  android:theme="@style/AppTheme">
 
-          echo "===== WEAR DATA LAYER ====="
+                  <meta-data
+                      android:name="com.google.android.wearable.standalone"
+                      android:value="false"/>
 
-          grep -n "play-services-wearable" \
-            app/build.gradle.kts
+                  <activity
+                      android:name=".WatchMainActivity"
+                      android:exported="true">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN"/>
+                          <category android:name="android.intent.category.LAUNCHER"/>
+                      </intent-filter>
+                  </activity>
 
-          grep -n "coroutines-play-services" \
-            app/build.gradle.kts
+                  <service
+                      android:name=".HealthDataListenerService"
+                      android:exported="true">
+                      <intent-filter>
+                          <action android:name="com.google.android.gms.wearable.DATA_CHANGED"/>
+                          <data
+                              android:scheme="wear"
+                              android:host="*"
+                              android:path="/satisfy/health_scores"/>
+                      </intent-filter>
+                  </service>
 
+                  <service
+                      android:name=".EnergyComplicationService"
+                      android:exported="true"
+                      android:label="@string/energy_provider"
+                      android:icon="@drawable/ic_provider"
+                      android:permission="com.google.android.wearable.permission.BIND_COMPLICATION_PROVIDER">
+                      <intent-filter>
+                          <action android:name="android.support.wearable.complications.ACTION_COMPLICATION_UPDATE_REQUEST"/>
+                      </intent-filter>
+                      <meta-data
+                          android:name="android.support.wearable.complications.SUPPORTED_TYPES"
+                          android:value="RANGED_VALUE,SHORT_TEXT"/>
+                      <meta-data
+                          android:name="android.support.wearable.complications.UPDATE_PERIOD_SECONDS"
+                          android:value="0"/>
+                  </service>
 
-      - name: Verify Health Bridge source
-        shell: bash
-        run: |
-          set -e
+                  <service
+                      android:name=".SleepComplicationService"
+                      android:exported="true"
+                      android:label="@string/sleep_provider"
+                      android:icon="@drawable/ic_provider"
+                      android:permission="com.google.android.wearable.permission.BIND_COMPLICATION_PROVIDER">
+                      <intent-filter>
+                          <action android:name="android.support.wearable.complications.ACTION_COMPLICATION_UPDATE_REQUEST"/>
+                      </intent-filter>
+                      <meta-data
+                          android:name="android.support.wearable.complications.SUPPORTED_TYPES"
+                          android:value="RANGED_VALUE,SHORT_TEXT"/>
+                      <meta-data
+                          android:name="android.support.wearable.complications.UPDATE_PERIOD_SECONDS"
+                          android:value="0"/>
+                  </service>
 
+              </application>
+          </manifest>
+          EOF
 
-          echo "===== SAMSUNG HEALTH ====="
+          cat > wear/src/main/java/com/satisfy/healthreader/HealthScoreStore.kt <<'EOF'
+          package com.satisfy.healthreader
 
-          grep -n "ENERGY_SCORE" \
-            app/src/main/java/com/satisfy/healthreader/MainActivity.kt \
-            || true
+          import android.content.Context
 
-          grep -n "SLEEP_SCORE" \
-            app/src/main/java/com/satisfy/healthreader/MainActivity.kt \
-            || true
-
-
-          echo "===== DATA LAYER ====="
-
-          grep -n "satisfy/health_scores" \
-            app/src/main/java/com/satisfy/healthreader/MainActivity.kt \
-            || true
-
-          grep -n "getNodeClient" \
-            app/src/main/java/com/satisfy/healthreader/MainActivity.kt \
-            || true
-
-          grep -n "putDataItem" \
-            app/src/main/java/com/satisfy/healthreader/MainActivity.kt \
-            || true
-
-
-      - name: Show runtime dependency tree
-        shell: bash
-        run: |
-          set -e
-
-
-          echo "===== DEBUG RUNTIME CLASSPATH ====="
-
-
-          gradle \
-            :app:dependencies \
-            --configuration debugRuntimeClasspath \
-            --no-daemon
-
-
-      - name: Build APK
-        shell: bash
-        run: |
-          set -e
-
-
-          echo "===== BUILD START ====="
-
-
-          gradle \
-            clean \
-            :app:assembleDebug \
-            --stacktrace \
-            --no-daemon \
-            --rerun-tasks
-
-
-          echo "===== BUILD COMPLETE ====="
-
-
-      - name: Find APK
-        shell: bash
-        run: |
-          set -e
-
-
-          echo "===== APK FILES ====="
-
-
-          find app/build/outputs/apk \
-            -type f \
-            -name "*.apk" \
-            -print
-
-
-      - name: Collect APK
-        shell: bash
-        run: |
-          set -e
-
-
-          mkdir -p apk-output
-
-
-          APK=$(
-            find app/build/outputs/apk/debug \
-              -type f \
-              -name "*.apk" \
-              | head -n 1
+          data class HealthScores(
+              val energy: Float?,
+              val energyDate: String,
+              val energyStale: Boolean,
+              val sleep: Int?,
+              val sleepDate: String,
+              val updatedAt: Long
           )
 
+          object HealthScoreStore {
+              private const val PREFS = "satisfy_health_scores"
 
-          if [ -z "$APK" ]; then
+              fun save(context: Context, scores: HealthScores) {
+                  context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                      .edit()
+                      .putFloat("energy_score", scores.energy ?: -1f)
+                      .putString("energy_date", scores.energyDate)
+                      .putBoolean("energy_stale", scores.energyStale)
+                      .putInt("sleep_score", scores.sleep ?: -1)
+                      .putString("sleep_date", scores.sleepDate)
+                      .putLong("updated_at", scores.updatedAt)
+                      .apply()
+              }
 
-              echo "ERROR: APK not found"
+              fun read(context: Context): HealthScores {
+                  val p = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                  val e = p.getFloat("energy_score", -1f)
+                  val s = p.getInt("sleep_score", -1)
+                  return HealthScores(
+                      energy = e.takeIf { it >= 0f },
+                      energyDate = p.getString("energy_date", "") ?: "",
+                      energyStale = p.getBoolean("energy_stale", false),
+                      sleep = s.takeIf { it >= 0 },
+                      sleepDate = p.getString("sleep_date", "") ?: "",
+                      updatedAt = p.getLong("updated_at", 0L)
+                  )
+              }
+          }
+          EOF
 
-              exit 1
+          cat > wear/src/main/java/com/satisfy/healthreader/BridgeData.kt <<'EOF'
+          package com.satisfy.healthreader
 
-          fi
+          import android.content.ComponentName
+          import android.content.Context
+          import androidx.wear.watchface.complications.datasource.ComplicationDataSourceUpdateRequester
+          import com.google.android.gms.wearable.DataItem
+          import com.google.android.gms.wearable.DataMapItem
 
+          object BridgeData {
+              const val PATH = "/satisfy/health_scores"
 
-          cp "$APK" \
-            apk-output/SATISFY_HealthBridge_PHONE_v0.4.0.apk
+              fun consume(context: Context, item: DataItem): Boolean {
+                  if (item.uri.path != PATH) return false
 
+                  val map = DataMapItem.fromDataItem(item).dataMap
+                  val energyRaw = map.getFloat("energy_score", -1f)
+                  val sleepRaw = map.getInt("sleep_score", -1)
 
-          echo "===== FINAL APK ====="
+                  HealthScoreStore.save(
+                      context,
+                      HealthScores(
+                          energy = energyRaw.takeIf { it >= 0f },
+                          energyDate = map.getString("energy_date") ?: "",
+                          energyStale = map.getBoolean("energy_stale", false),
+                          sleep = sleepRaw.takeIf { it >= 0 },
+                          sleepDate = map.getString("sleep_date") ?: "",
+                          updatedAt = map.getLong("updated_at", 0L)
+                      )
+                  )
 
+                  ComplicationDataSourceUpdateRequester.create(
+                      context,
+                      ComponentName(context, EnergyComplicationService::class.java)
+                  ).requestUpdateAll()
 
-          ls -lh \
-            apk-output/SATISFY_HealthBridge_PHONE_v0.4.0.apk
+                  ComplicationDataSourceUpdateRequester.create(
+                      context,
+                      ComponentName(context, SleepComplicationService::class.java)
+                  ).requestUpdateAll()
 
+                  return true
+              }
+          }
+          EOF
 
-          echo "===== SHA256 ====="
+          cat > wear/src/main/java/com/satisfy/healthreader/HealthDataListenerService.kt <<'EOF'
+          package com.satisfy.healthreader
 
+          import com.google.android.gms.wearable.DataEvent
+          import com.google.android.gms.wearable.DataEventBuffer
+          import com.google.android.gms.wearable.WearableListenerService
 
-          sha256sum \
-            apk-output/SATISFY_HealthBridge_PHONE_v0.4.0.apk
+          class HealthDataListenerService : WearableListenerService() {
+              override fun onDataChanged(dataEvents: DataEventBuffer) {
+                  dataEvents.forEach { event ->
+                      if (event.type == DataEvent.TYPE_CHANGED) {
+                          BridgeData.consume(applicationContext, event.dataItem)
+                      }
+                  }
+              }
+          }
+          EOF
 
+          cat > wear/src/main/java/com/satisfy/healthreader/ScoreComplication.kt <<'EOF'
+          package com.satisfy.healthreader
 
-      - name: Upload APK
+          import androidx.wear.watchface.complications.data.ComplicationData
+          import androidx.wear.watchface.complications.data.ComplicationType
+          import androidx.wear.watchface.complications.data.PlainComplicationText
+          import androidx.wear.watchface.complications.data.RangedValueComplicationData
+          import androidx.wear.watchface.complications.data.ShortTextComplicationData
+
+          object ScoreComplication {
+              fun build(type: ComplicationType, value: Float?, label: String): ComplicationData? {
+                  val display = value?.toInt()?.toString() ?: "--"
+                  val text = PlainComplicationText.Builder(display).build()
+                  val description = PlainComplicationText.Builder("$label $display").build()
+
+                  return when (type) {
+                      ComplicationType.RANGED_VALUE ->
+                          RangedValueComplicationData.Builder(
+                              value ?: 0f,
+                              0f,
+                              100f,
+                              description
+                          ).setText(text).build()
+
+                      ComplicationType.SHORT_TEXT ->
+                          ShortTextComplicationData.Builder(
+                              text,
+                              description
+                          ).build()
+
+                      else -> null
+                  }
+              }
+          }
+          EOF
+
+          cat > wear/src/main/java/com/satisfy/healthreader/EnergyComplicationService.kt <<'EOF'
+          package com.satisfy.healthreader
+
+          import androidx.wear.watchface.complications.data.ComplicationData
+          import androidx.wear.watchface.complications.data.ComplicationType
+          import androidx.wear.watchface.complications.datasource.ComplicationDataSourceService
+          import androidx.wear.watchface.complications.datasource.ComplicationRequest
+
+          class EnergyComplicationService : ComplicationDataSourceService() {
+              override fun onComplicationRequest(
+                  request: ComplicationRequest,
+                  listener: ComplicationRequestListener
+              ) {
+                  listener.onComplicationData(
+                      ScoreComplication.build(
+                          request.complicationType,
+                          HealthScoreStore.read(this).energy,
+                          "Energy"
+                      )
+                  )
+              }
+
+              override fun getPreviewData(type: ComplicationType): ComplicationData? =
+                  ScoreComplication.build(type, 77f, "Energy")
+          }
+          EOF
+
+          cat > wear/src/main/java/com/satisfy/healthreader/SleepComplicationService.kt <<'EOF'
+          package com.satisfy.healthreader
+
+          import androidx.wear.watchface.complications.data.ComplicationData
+          import androidx.wear.watchface.complications.data.ComplicationType
+          import androidx.wear.watchface.complications.datasource.ComplicationDataSourceService
+          import androidx.wear.watchface.complications.datasource.ComplicationRequest
+
+          class SleepComplicationService : ComplicationDataSourceService() {
+              override fun onComplicationRequest(
+                  request: ComplicationRequest,
+                  listener: ComplicationRequestListener
+              ) {
+                  listener.onComplicationData(
+                      ScoreComplication.build(
+                          request.complicationType,
+                          HealthScoreStore.read(this).sleep?.toFloat(),
+                          "Sleep"
+                      )
+                  )
+              }
+
+              override fun getPreviewData(type: ComplicationType): ComplicationData? =
+                  ScoreComplication.build(type, 83f, "Sleep")
+          }
+          EOF
+
+          cat > wear/src/main/java/com/satisfy/healthreader/WatchMainActivity.kt <<'EOF'
+          package com.satisfy.healthreader
+
+          import android.os.Bundle
+          import android.widget.Button
+          import android.widget.LinearLayout
+          import android.widget.ScrollView
+          import android.widget.TextView
+          import androidx.appcompat.app.AppCompatActivity
+          import androidx.lifecycle.lifecycleScope
+          import com.google.android.gms.wearable.Wearable
+          import kotlinx.coroutines.launch
+          import kotlinx.coroutines.tasks.await
+          import java.text.DateFormat
+          import java.util.Date
+
+          class WatchMainActivity : AppCompatActivity() {
+              private lateinit var status: TextView
+
+              override fun onCreate(savedInstanceState: Bundle?) {
+                  super.onCreate(savedInstanceState)
+
+                  val root = LinearLayout(this).apply {
+                      orientation = LinearLayout.VERTICAL
+                      setPadding(28, 28, 28, 28)
+                  }
+
+                  root.addView(TextView(this).apply {
+                      text = "SATISFY HEALTH BRIDGE\nWATCH v0.4.1"
+                      textSize = 19f
+                  })
+
+                  status = TextView(this).apply {
+                      textSize = 15f
+                      setPadding(0, 20, 0, 20)
+                  }
+                  root.addView(status)
+
+                  root.addView(Button(this).apply {
+                      text = "READ CURRENT DATAITEM"
+                      setOnClickListener { readCurrentDataItem() }
+                  })
+
+                  setContentView(ScrollView(this).apply { addView(root) })
+
+                  showStatus("LOCAL CACHE")
+                  readCurrentDataItem()
+              }
+
+              private fun readCurrentDataItem() {
+                  lifecycleScope.launch {
+                      try {
+                          val buffer =
+                              Wearable.getDataClient(this@WatchMainActivity)
+                                  .dataItems
+                                  .await()
+
+                          var found = false
+                          try {
+                              for (item in buffer) {
+                                  if (BridgeData.consume(this@WatchMainActivity, item)) {
+                                      found = true
+                                  }
+                              }
+                          } finally {
+                              buffer.release()
+                          }
+
+                          showStatus(
+                              if (found) "CURRENT DATAITEM FOUND"
+                              else "NO CURRENT DATAITEM"
+                          )
+                      } catch (t: Throwable) {
+                          showStatus(
+                              "READ ERROR\n${t.javaClass.name}\n${t.message ?: "(no message)"}"
+                          )
+                      }
+                  }
+              }
+
+              private fun showStatus(header: String) {
+                  val s = HealthScoreStore.read(this)
+                  val updated =
+                      if (s.updatedAt > 0L)
+                          DateFormat.getDateTimeInstance().format(Date(s.updatedAt))
+                      else "--"
+
+                  status.text = """
+                      $header
+
+                      ENERGY SCORE   ${s.energy?.toInt() ?: "--"}
+                      ENERGY DATE    ${s.energyDate.ifEmpty { "--" }}
+                      ENERGY STALE   ${s.energyStale}
+
+                      SLEEP SCORE    ${s.sleep ?: "--"}
+                      SLEEP DATE     ${s.sleepDate.ifEmpty { "--" }}
+
+                      UPDATED        $updated
+                  """.trimIndent()
+              }
+          }
+          EOF
+
+      - name: Build both APKs
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle clean :app:assembleDebug :wear:assembleDebug \
+            --no-daemon --stacktrace --rerun-tasks
+
+      - name: Verify package and certificate
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build-out
+
+          PHONE=$(find app/build/outputs/apk/debug -name '*.apk' | head -n1)
+          WATCH=$(find wear/build/outputs/apk/debug -name '*.apk' | head -n1)
+
+          test -n "$PHONE"
+          test -n "$WATCH"
+
+          cp "$PHONE" build-out/SATISFY_HealthBridge_PHONE_v0.4.1.apk
+          cp "$WATCH" build-out/SATISFY_HealthBridge_WATCH_v0.4.1.apk
+
+          AAPT="$ANDROID_HOME/build-tools/35.0.0/aapt"
+          APKSIGNER="$ANDROID_HOME/build-tools/35.0.0/apksigner"
+
+          PHONE_PACKAGE=$("$AAPT" dump badging "$PHONE" | sed -n "s/package: name='\([^']*\)'.*/\1/p" | head -n1)
+          WATCH_PACKAGE=$("$AAPT" dump badging "$WATCH" | sed -n "s/package: name='\([^']*\)'.*/\1/p" | head -n1)
+
+          echo "PHONE PACKAGE = $PHONE_PACKAGE"
+          echo "WATCH PACKAGE = $WATCH_PACKAGE"
+
+          test "$PHONE_PACKAGE" = "com.satisfy.healthreader"
+          test "$WATCH_PACKAGE" = "com.satisfy.healthreader"
+
+          PHONE_CERT=$("$APKSIGNER" verify --print-certs "$PHONE" |
+            sed -n 's/Signer #1 certificate SHA-256 digest: //p' | head -n1)
+          WATCH_CERT=$("$APKSIGNER" verify --print-certs "$WATCH" |
+            sed -n 's/Signer #1 certificate SHA-256 digest: //p' | head -n1)
+
+          echo "PHONE SIGNER SHA256 = $PHONE_CERT"
+          echo "WATCH SIGNER SHA256 = $WATCH_CERT"
+
+          test -n "$PHONE_CERT"
+          test "$PHONE_CERT" = "$WATCH_CERT"
+
+          echo "PACKAGE MATCH = YES"
+          echo "SIGNATURE MATCH = YES"
+
+      - name: Upload PHONE
         uses: actions/upload-artifact@v4
         with:
+          name: SATISFY-HealthBridge-PHONE-v0.4.1
+          path: build-out/SATISFY_HealthBridge_PHONE_v0.4.1.apk
 
-          name: SATISFY-HealthBridge-PHONE-v0.4.0-APK
-
-          path: apk-output/SATISFY_HealthBridge_PHONE_v0.4.0.apk
-
-          if-no-files-found: error
+      - name: Upload WATCH
+        uses: actions/upload-artifact@v4
+        with:
+          name: SATISFY-HealthBridge-WATCH-v0.4.1
+          path: build-out/SATISFY_HealthBridge_WATCH_v0.4.1.apk
