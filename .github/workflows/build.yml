@@ -1,4 +1,4 @@
-name: Build SATISFY Health Reader v0.3.2
+name: Build SATISFY Health Reader v0.3.3
 
 on:
   workflow_dispatch:
@@ -11,6 +11,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -31,15 +32,18 @@ jobs:
           set -e
 
           echo "===== CLEAN OLD PROJECT ====="
+
           rm -rf app
           rm -rf apk-output
 
           echo "===== CREATE PROJECT ====="
+
           mkdir -p app/libs
           mkdir -p app/src/main/java/com/satisfy/healthreader
           mkdir -p app/src/main/res/values
 
           echo "===== COPY CURRENT ROOT FILES ====="
+
           cp samsung-health-data-api-1.1.0.aar \
             app/libs/samsung-health-data-api-1.1.0.aar
 
@@ -53,16 +57,28 @@ jobs:
             app/src/main/res/values/styles.xml
 
           echo "===== VERIFY MAINACTIVITY ====="
-          grep -n "v0.3.2" \
-            app/src/main/java/com/satisfy/healthreader/MainActivity.kt
 
-          echo "===== MAINACTIVITY SHA256 ====="
+          if grep -q "v0.3.3" \
+            app/src/main/java/com/satisfy/healthreader/MainActivity.kt
+          then
+            echo "MainActivity version: v0.3.3 OK"
+          else
+            echo "WARNING: v0.3.3 text not found in MainActivity.kt"
+          fi
+
+          echo "===== ROOT MAINACTIVITY SHA256 ====="
+
           sha256sum MainActivity.kt
+
+          echo "===== COPIED MAINACTIVITY SHA256 ====="
+
           sha256sum \
             app/src/main/java/com/satisfy/healthreader/MainActivity.kt
 
           echo "===== PROJECT FILES ====="
+
           find app -type f | sort
+
 
       - name: Write root Gradle files
         shell: bash
@@ -87,13 +103,15 @@ jobs:
 
           dependencyResolutionManagement {
               repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+
               repositories {
                   google()
                   mavenCentral()
               }
           }
 
-          rootProject.name = "SATISFY-HealthReader-v032"
+          rootProject.name = "SATISFY-HealthReader-v033"
+
           include(":app")
           EOF
 
@@ -109,10 +127,16 @@ jobs:
           echo "===== settings.gradle.kts ====="
           cat settings.gradle.kts
 
+          echo "===== gradle.properties ====="
+          cat gradle.properties
+
+
       - name: Write app Gradle
         shell: bash
         run: |
           set -e
+
+          mkdir -p app
 
           cat > app/build.gradle.kts <<'EOF'
           plugins {
@@ -122,15 +146,17 @@ jobs:
 
           android {
               namespace = "com.satisfy.healthreader"
+
               compileSdk = 35
 
               defaultConfig {
                   applicationId = "com.satisfy.healthreader"
+
                   minSdk = 29
                   targetSdk = 35
 
-                  versionCode = 32
-                  versionName = "0.3.2"
+                  versionCode = 33
+                  versionName = "0.3.3"
               }
 
               compileOptions {
@@ -144,8 +170,11 @@ jobs:
           }
 
           dependencies {
+
               implementation(
-                  files("libs/samsung-health-data-api-1.1.0.aar")
+                  files(
+                      "libs/samsung-health-data-api-1.1.0.aar"
+                  )
               )
 
               implementation(
@@ -167,7 +196,9 @@ jobs:
           EOF
 
           echo "===== app/build.gradle.kts ====="
+
           cat app/build.gradle.kts
+
 
       - name: Verify source before build
         shell: bash
@@ -176,23 +207,40 @@ jobs:
 
           echo "===== SOURCE USED FOR BUILD ====="
 
-          grep -n "v0.3.2" \
+          echo "MainActivity path:"
+
+          ls -lh \
             app/src/main/java/com/satisfy/healthreader/MainActivity.kt
 
-          echo "===== FIRST 40 LINES ====="
+          echo "===== VERSION CHECK ====="
 
-          head -n 40 \
+          grep -n "v0.3.3" \
+            app/src/main/java/com/satisfy/healthreader/MainActivity.kt \
+            || true
+
+          echo "===== FIRST 50 LINES ====="
+
+          head -n 50 \
             app/src/main/java/com/satisfy/healthreader/MainActivity.kt
+
+          echo "===== SOURCE SHA256 ====="
+
+          sha256sum \
+            app/src/main/java/com/satisfy/healthreader/MainActivity.kt
+
 
       - name: Build APK
         shell: bash
         run: |
           set -e
 
+          echo "===== START GRADLE BUILD ====="
+
           gradle clean :app:assembleDebug \
             --stacktrace \
             --no-daemon \
             --rerun-tasks
+
 
       - name: Find APK
         if: success()
@@ -204,6 +252,7 @@ jobs:
             -type f \
             -name "*.apk" \
             -print
+
 
       - name: Collect APK
         if: success()
@@ -225,23 +274,27 @@ jobs:
             exit 1
           fi
 
+          echo "Source APK:"
+          echo "$APK"
+
           cp "$APK" \
-            apk-output/SATISFY_HealthReader_v0.3.2.apk
+            apk-output/SATISFY_HealthReader_v0.3.3.apk
 
           echo "===== FINAL APK ====="
 
           ls -lh \
-            apk-output/SATISFY_HealthReader_v0.3.2.apk
+            apk-output/SATISFY_HealthReader_v0.3.3.apk
 
-          echo "===== APK SHA256 ====="
+          echo "===== FINAL APK SHA256 ====="
 
           sha256sum \
-            apk-output/SATISFY_HealthReader_v0.3.2.apk
+            apk-output/SATISFY_HealthReader_v0.3.3.apk
+
 
       - name: Upload APK
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: SATISFY-HealthReader-v0.3.2-APK
-          path: apk-output/SATISFY_HealthReader_v0.3.2.apk
+          name: SATISFY-HealthReader-v0.3.3-APK
+          path: apk-output/SATISFY_HealthReader_v0.3.3.apk
           if-no-files-found: error
