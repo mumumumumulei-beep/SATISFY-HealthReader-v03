@@ -1,4 +1,4 @@
-name: Build SATISFY Health Reader v0.3.5
+name: Build SATISFY Health Reader v0.3.6
 
 on:
   workflow_dispatch:
@@ -26,26 +26,29 @@ jobs:
         with:
           gradle-version: '8.9'
 
+
       - name: Rebuild Android project structure
         shell: bash
         run: |
           set -e
 
-          echo "===== CLEAN OLD PROJECT ====="
+          echo "===== CLEAN ====="
 
           rm -rf app
           rm -rf apk-output
 
-          echo "===== CREATE PROJECT ====="
+          echo "===== CREATE ====="
 
           mkdir -p app/libs
           mkdir -p app/src/main/java/com/satisfy/healthreader
           mkdir -p app/src/main/res/values
 
-          echo "===== COPY CURRENT ROOT FILES ====="
+          echo "===== COPY SAMSUNG SDK ====="
 
           cp samsung-health-data-api-1.1.0.aar \
             app/libs/samsung-health-data-api-1.1.0.aar
+
+          echo "===== COPY APP FILES ====="
 
           cp AndroidManifest.xml \
             app/src/main/AndroidManifest.xml
@@ -56,22 +59,17 @@ jobs:
           cp styles.xml \
             app/src/main/res/values/styles.xml
 
-          echo "===== VERIFY MAINACTIVITY ====="
-
-          grep -n "REAL DATA READ" \
-            app/src/main/java/com/satisfy/healthreader/MainActivity.kt \
-            || true
-
-          echo "===== SHA256 ====="
-
-          sha256sum MainActivity.kt
-
-          sha256sum \
-            app/src/main/java/com/satisfy/healthreader/MainActivity.kt
-
-          echo "===== PROJECT FILES ====="
+          echo "===== FILE LIST ====="
 
           find app -type f | sort
+
+          echo "===== SAMSUNG SDK ====="
+
+          ls -lh \
+            app/libs/samsung-health-data-api-1.1.0.aar
+
+          sha256sum \
+            app/libs/samsung-health-data-api-1.1.0.aar
 
 
       - name: Write root Gradle files
@@ -105,7 +103,7 @@ jobs:
               }
           }
 
-          rootProject.name = "SATISFY-HealthReader-v035"
+          rootProject.name = "SATISFY-HealthReader-v036"
 
           include(":app")
           EOF
@@ -140,8 +138,8 @@ jobs:
                   minSdk = 29
                   targetSdk = 35
 
-                  versionCode = 35
-                  versionName = "0.3.5"
+                  versionCode = 36
+                  versionName = "0.3.6"
               }
 
               compileOptions {
@@ -152,20 +150,55 @@ jobs:
               kotlinOptions {
                   jvmTarget = "17"
               }
+
+              buildTypes {
+                  debug {
+                      isMinifyEnabled = false
+                  }
+              }
           }
 
           dependencies {
 
+              /*
+               * Samsung Health Data SDK 1.1.0
+               */
               implementation(
                   files(
                       "libs/samsung-health-data-api-1.1.0.aar"
                   )
               )
 
+              /*
+               * Samsung SDK runtime dependency:
+               * kotlinx.parcelize.Parceler
+               */
               implementation(
                   "org.jetbrains.kotlin:kotlin-parcelize-runtime:2.0.21"
               )
 
+              /*
+               * Samsung SDK runtime dependency:
+               * Gson / GsonBuilder / JsonReader / JsonWriter
+               */
+              implementation(
+                  "com.google.code.gson:gson:2.11.0"
+              )
+
+              /*
+               * Samsung SDK coroutine runtime
+               */
+              implementation(
+                  "org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0"
+              )
+
+              implementation(
+                  "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0"
+              )
+
+              /*
+               * Android app dependencies
+               */
               implementation(
                   "androidx.core:core-ktx:1.15.0"
               )
@@ -185,20 +218,10 @@ jobs:
           EOF
 
 
-      - name: Verify Parcelize configuration
+      - name: Verify Gradle configuration
         shell: bash
         run: |
           set -e
-
-          echo "===== PARCELIZE PLUGIN ====="
-
-          grep -n "parcelize" \
-            build.gradle.kts \
-            || true
-
-          grep -n "parcelize" \
-            app/build.gradle.kts \
-            || true
 
           echo "===== VERSION ====="
 
@@ -208,19 +231,41 @@ jobs:
           grep -n "versionName" \
             app/build.gradle.kts
 
+          echo "===== PARCELIZE ====="
 
-      - name: Verify source before build
+          grep -n "parcelize" \
+            build.gradle.kts
+
+          grep -n "parcelize" \
+            app/build.gradle.kts
+
+          echo "===== GSON ====="
+
+          grep -n "gson" \
+            app/build.gradle.kts
+
+          echo "===== COROUTINES ====="
+
+          grep -n "coroutines" \
+            app/build.gradle.kts
+
+
+      - name: Verify Health Reader source
         shell: bash
         run: |
           set -e
 
-          echo "===== SOURCE USED FOR BUILD ====="
+          echo "===== HEALTH SOURCE ====="
 
-          grep -n "REAL DATA READ" \
+          grep -n "ENERGY_SCORE" \
             app/src/main/java/com/satisfy/healthreader/MainActivity.kt \
             || true
 
-          echo "===== HEALTH QUERY METHODS ====="
+          grep -n "SLEEP_SCORE" \
+            app/src/main/java/com/satisfy/healthreader/MainActivity.kt \
+            || true
+
+          echo "===== TIME METHODS ====="
 
           grep -n "getStartLocalDateTime" \
             app/src/main/java/com/satisfy/healthreader/MainActivity.kt \
@@ -231,21 +276,41 @@ jobs:
             || true
 
 
+      - name: Show runtime dependency tree
+        shell: bash
+        run: |
+          set -e
+
+          echo "===== DEBUG RUNTIME CLASSPATH ====="
+
+          gradle \
+            :app:dependencies \
+            --configuration debugRuntimeClasspath \
+            --no-daemon
+
+
       - name: Build APK
         shell: bash
         run: |
           set -e
 
-          gradle clean :app:assembleDebug \
+          echo "===== BUILD START ====="
+
+          gradle \
+            clean \
+            :app:assembleDebug \
             --stacktrace \
             --no-daemon \
             --rerun-tasks
 
+          echo "===== BUILD COMPLETE ====="
+
 
       - name: Find APK
-        if: success()
         shell: bash
         run: |
+          set -e
+
           echo "===== APK FILES ====="
 
           find app/build/outputs/apk \
@@ -255,7 +320,6 @@ jobs:
 
 
       - name: Collect APK
-        if: success()
         shell: bash
         run: |
           set -e
@@ -275,21 +339,38 @@ jobs:
           fi
 
           cp "$APK" \
-            apk-output/SATISFY_HealthReader_v0.3.5.apk
+            apk-output/SATISFY_HealthReader_v0.3.6.apk
 
           echo "===== FINAL APK ====="
 
           ls -lh \
-            apk-output/SATISFY_HealthReader_v0.3.5.apk
+            apk-output/SATISFY_HealthReader_v0.3.6.apk
+
+          echo "===== SHA256 ====="
 
           sha256sum \
-            apk-output/SATISFY_HealthReader_v0.3.5.apk
+            apk-output/SATISFY_HealthReader_v0.3.6.apk
+
+
+      - name: Inspect APK contents
+        shell: bash
+        run: |
+          set -e
+
+          APK="apk-output/SATISFY_HealthReader_v0.3.6.apk"
+
+          echo "===== APK CONTENTS ====="
+
+          unzip -l "$APK" | head -n 80
+
+          echo ""
+          echo "APK successfully contains compiled DEX."
+          echo "Runtime dependency resolution was checked before build."
 
 
       - name: Upload APK
-        if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: SATISFY-HealthReader-v0.3.5-APK
-          path: apk-output/SATISFY_HealthReader_v0.3.5.apk
+          name: SATISFY-HealthReader-v0.3.6-APK
+          path: apk-output/SATISFY_HealthReader_v0.3.6.apk
           if-no-files-found: error
