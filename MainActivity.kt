@@ -30,6 +30,10 @@ class MainActivity : AppCompatActivity() {
     private var energyScore: Float? = null
     private var sleepScore: Int? = null
 
+    private var permissionStatus = "NOT TESTED"
+    private var energyPermissionStatus = "NOT TESTED"
+    private var sleepPermissionStatus = "NOT TESTED"
+
     private val energyPermission by lazy {
         Permission.of(
             DataTypes.ENERGY_SCORE,
@@ -60,8 +64,9 @@ class MainActivity : AppCompatActivity() {
 
         val density = resources.displayMetrics.density
 
-        fun dp(value: Int) =
-            (value * density).toInt()
+        fun dp(value: Int): Int {
+            return (value * density).toInt()
+        }
 
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -81,6 +86,7 @@ class MainActivity : AppCompatActivity() {
         val version = TextView(this).apply {
             text = "v0.3.4 REAL DATA READ"
             textSize = 14f
+
             setPadding(
                 0,
                 dp(6),
@@ -91,17 +97,17 @@ class MainActivity : AppCompatActivity() {
 
         status = TextView(this).apply {
             textSize = 17f
+
             setPadding(
                 0,
                 0,
                 0,
                 dp(20)
             )
-
-            updateStatus(
-                permission = "NOT TESTED"
-            )
         }
+
+        refreshStatus()
+
 
         val button1 = Button(this).apply {
 
@@ -115,17 +121,15 @@ class MainActivity : AppCompatActivity() {
                         "APP TEST OK"
                     )
 
-                    updateStatus(
-                        permission = "NOT TESTED"
-                    )
+                    refreshStatus()
                 }
             }
         }
 
+
         val button2 = Button(this).apply {
 
-            text =
-                "2  测试 SAMSUNG HEALTH SDK"
+            text = "2  测试 SAMSUNG HEALTH SDK"
 
             setOnClickListener {
 
@@ -144,17 +148,15 @@ ${clazz.name}
                         """.trimIndent()
                     )
 
-                    updateStatus(
-                        permission = "NOT TESTED"
-                    )
+                    refreshStatus()
                 }
             }
         }
 
+
         val button3 = Button(this).apply {
 
-            text =
-                "3  GET HEALTH DATA STORE"
+            text = "3  GET HEALTH DATA STORE"
 
             setOnClickListener {
 
@@ -182,17 +184,15 @@ ${store.javaClass.name}
                         """.trimIndent()
                     )
 
-                    updateStatus(
-                        permission = "NOT TESTED"
-                    )
+                    refreshStatus()
                 }
             }
         }
 
+
         val button4 = Button(this).apply {
 
-            text =
-                "4  CHECK PERMISSIONS"
+            text = "4  CHECK PERMISSIONS"
 
             setOnClickListener {
 
@@ -233,6 +233,27 @@ SLEEP READ
                                 requiredPermissions
                             )
 
+                        permissionStatus =
+                            if (allGranted) {
+                                "OK"
+                            } else {
+                                "MISSING"
+                            }
+
+                        energyPermissionStatus =
+                            if (energyGranted) {
+                                "GRANTED"
+                            } else {
+                                "MISSING"
+                            }
+
+                        sleepPermissionStatus =
+                            if (sleepGranted) {
+                                "GRANTED"
+                            } else {
+                                "MISSING"
+                            }
+
                         appendLog(
                             """
 CHECK PERMISSIONS OK
@@ -248,23 +269,7 @@ $allGranted
                             """.trimIndent()
                         )
 
-                        updateStatus(
-                            permission =
-                                if (allGranted)
-                                    "OK"
-                                else
-                                    "MISSING",
-                            energyPermissionStatus =
-                                if (energyGranted)
-                                    "GRANTED"
-                                else
-                                    "MISSING",
-                            sleepPermissionStatus =
-                                if (sleepGranted)
-                                    "GRANTED"
-                                else
-                                    "MISSING"
-                        )
+                        refreshStatus()
 
                     } catch (t: Throwable) {
 
@@ -277,10 +282,10 @@ $allGranted
             }
         }
 
+
         val button5 = Button(this).apply {
 
-            text =
-                "5  REQUEST PERMISSIONS"
+            text = "5  REQUEST PERMISSIONS"
 
             setOnClickListener {
 
@@ -350,6 +355,27 @@ ${missing.size}
                                 requiredPermissions
                             )
 
+                        permissionStatus =
+                            if (allGranted) {
+                                "OK"
+                            } else {
+                                "MISSING"
+                            }
+
+                        energyPermissionStatus =
+                            if (energyGranted) {
+                                "GRANTED"
+                            } else {
+                                "MISSING"
+                            }
+
+                        sleepPermissionStatus =
+                            if (sleepGranted) {
+                                "GRANTED"
+                            } else {
+                                "MISSING"
+                            }
+
                         appendLog(
                             """
 PERMISSION RESULT
@@ -365,23 +391,7 @@ $allGranted
                             """.trimIndent()
                         )
 
-                        updateStatus(
-                            permission =
-                                if (allGranted)
-                                    "OK"
-                                else
-                                    "MISSING",
-                            energyPermissionStatus =
-                                if (energyGranted)
-                                    "GRANTED"
-                                else
-                                    "MISSING",
-                            sleepPermissionStatus =
-                                if (sleepGranted)
-                                    "GRANTED"
-                                else
-                                    "MISSING"
-                        )
+                        refreshStatus()
 
                     } catch (t: Throwable) {
 
@@ -394,10 +404,10 @@ $allGranted
             }
         }
 
+
         val button6 = Button(this).apply {
 
-            text =
-                "6  READ ENERGY"
+            text = "6  READ ENERGY"
 
             setOnClickListener {
 
@@ -470,9 +480,7 @@ ${data.size}
                         var selectedDate:
                             String? = null
 
-                        for (
-                            point in data
-                        ) {
+                        for (point in data) {
 
                             val score =
                                 point.getValue(
@@ -483,7 +491,7 @@ ${data.size}
 
                             val localDate =
                                 point
-                                    .startLocalDateTime
+                                    .getStartLocalDateTime()
                                     .toLocalDate()
 
                             appendLog(
@@ -517,9 +525,7 @@ ${point.updateTime}
                         energyScore =
                             selectedScore
 
-                        if (
-                            selectedScore != null
-                        ) {
+                        if (selectedScore != null) {
 
                             appendLog(
                                 """
@@ -545,13 +551,10 @@ was found for today/yesterday.
                             )
                         }
 
-                        updateStatus(
-                            permission = "OK",
-                            energyPermissionStatus =
-                                "GRANTED",
-                            sleepPermissionStatus =
-                                "GRANTED"
-                        )
+                        permissionStatus = "OK"
+                        energyPermissionStatus = "GRANTED"
+
+                        refreshStatus()
 
                     } catch (t: Throwable) {
 
@@ -564,10 +567,10 @@ was found for today/yesterday.
             }
         }
 
+
         val button7 = Button(this).apply {
 
-            text =
-                "7  READ SLEEP"
+            text = "7  READ SLEEP"
 
             setOnClickListener {
 
@@ -640,9 +643,7 @@ ${data.size}
                         var selectedTime:
                             String? = null
 
-                        for (
-                            point in data
-                        ) {
+                        for (point in data) {
 
                             val score =
                                 point.getValue(
@@ -653,11 +654,11 @@ ${data.size}
 
                             val startTime =
                                 point
-                                    .startLocalDateTime
+                                    .getStartLocalDateTime()
 
                             val endTime =
                                 point
-                                    .endLocalDateTime
+                                    .getEndLocalDateTime()
 
                             appendLog(
                                 """
@@ -667,7 +668,7 @@ Start:
 $startTime
 
 End:
-$endTime
+${endTime ?: "null"}
 
 Sleep Score:
 ${score ?: "null"}
@@ -693,9 +694,7 @@ ${point.updateTime}
                         sleepScore =
                             selectedScore
 
-                        if (
-                            selectedScore != null
-                        ) {
+                        if (selectedScore != null) {
 
                             appendLog(
                                 """
@@ -721,13 +720,10 @@ was found in the last 48 hours.
                             )
                         }
 
-                        updateStatus(
-                            permission = "OK",
-                            energyPermissionStatus =
-                                "GRANTED",
-                            sleepPermissionStatus =
-                                "GRANTED"
-                        )
+                        permissionStatus = "OK"
+                        sleepPermissionStatus = "GRANTED"
+
+                        refreshStatus()
 
                     } catch (t: Throwable) {
 
@@ -740,11 +736,11 @@ was found in the last 48 hours.
             }
         }
 
+
         val clear =
             Button(this).apply {
 
-                text =
-                    "清空诊断日志"
+                text = "清空诊断日志"
 
                 setOnClickListener {
 
@@ -752,41 +748,50 @@ was found in the last 48 hours.
                 }
             }
 
+
         val logTitle =
             TextView(this).apply {
 
-                text =
-                    "\nDIAGNOSTIC LOG"
+                text = "\nDIAGNOSTIC LOG"
 
                 textSize = 18f
             }
+
 
         log =
             TextView(this).apply {
 
                 text =
                     """
-v0.3.4 启动成功。
+v0.3.4 REAL DATA READ
 
-REAL DATA READ
+当前阶段：
 
-当前目标：
+APP                OK
+SDK                OK
+STORE              已验证
+ENERGY PERMISSION  已验证
+SLEEP PERMISSION   已验证
 
-1 APP
-2 SDK
-3 STORE
-4 CHECK PERMISSIONS
-5 REQUEST PERMISSIONS
-6 READ ENERGY
-7 READ SLEEP
+按钮 6：
+读取真实 Samsung Health Energy Score
 
-Energy:
+按钮 7：
+读取真实 Samsung Health Sleep Score
+
+Energy 查询：
 今天 + 昨天
 
-Sleep:
+Sleep 查询：
 最近 48 小时
 
-无数据保持 --。
+无数据：
+--
+
+本版本修正：
+HealthDataPoint
+getStartLocalDateTime()
+getEndLocalDateTime()
                     """.trimIndent()
 
                 textSize = 14f
@@ -800,6 +805,7 @@ Sleep:
 
                 setTextIsSelectable(true)
             }
+
 
         root.addView(title)
         root.addView(version)
@@ -818,6 +824,7 @@ Sleep:
         root.addView(logTitle)
         root.addView(log)
 
+
         val scroll =
             ScrollView(this)
 
@@ -825,6 +832,7 @@ Sleep:
 
         setContentView(scroll)
     }
+
 
     private suspend fun ensurePermission(
         store: HealthDataStore,
@@ -837,11 +845,7 @@ Sleep:
                 setOf(permission)
             )
 
-        if (
-            !granted.contains(
-                permission
-            )
-        ) {
+        if (!granted.contains(permission)) {
 
             throw IllegalStateException(
                 "$name READ permission is not granted"
@@ -849,16 +853,14 @@ Sleep:
         }
     }
 
+
     private fun getOrCreateStore():
         HealthDataStore {
 
         val existing =
             healthStore
 
-        if (
-            existing != null
-        ) {
-
+        if (existing != null) {
             return existing
         }
 
@@ -871,23 +873,19 @@ Sleep:
                 applicationContext
             )
 
-        healthStore =
-            store
+        healthStore = store
 
         appendLog(
             "HealthDataStore created successfully."
         )
 
+        refreshStatus()
+
         return store
     }
 
-    private fun updateStatus(
-        permission: String,
-        energyPermissionStatus: String =
-            "NOT TESTED",
-        sleepPermissionStatus: String =
-            "NOT TESTED"
-    ) {
+
+    private fun refreshStatus() {
 
         val energyText =
             energyScore
@@ -911,7 +909,7 @@ SDK AAR                FOUND
 SDK CLASS              OK
 HEALTH DATA STORE      ${if (healthStore != null) "OK" else "NOT TESTED"}
 
-PERMISSION             $permission
+PERMISSION             $permissionStatus
 
 ENERGY PERMISSION      $energyPermissionStatus
 SLEEP PERMISSION       $sleepPermissionStatus
@@ -920,6 +918,7 @@ ENERGY SCORE           $energyText
 SLEEP SCORE            $sleepText
             """.trimIndent()
     }
+
 
     private fun safeRun(
         name: String,
@@ -930,9 +929,7 @@ SLEEP SCORE            $sleepText
 
             action()
 
-        } catch (
-            t: Throwable
-        ) {
+        } catch (t: Throwable) {
 
             showError(
                 name,
@@ -940,6 +937,7 @@ SLEEP SCORE            $sleepText
             )
         }
     }
+
 
     private fun showError(
         name: String,
@@ -976,6 +974,8 @@ ${root.message ?: "(no message)"}
         status.text =
             """
 APP START              OK
+SDK AAR                FOUND
+SDK CLASS              OK
 HEALTH DATA STORE      ${if (healthStore != null) "OK" else "NOT TESTED"}
 
 $name
@@ -987,6 +987,7 @@ ENERGY SCORE           ${energyScore ?: "--"}
 SLEEP SCORE            ${sleepScore ?: "--"}
             """.trimIndent()
     }
+
 
     private fun rootCause(
         throwable: Throwable
@@ -1006,6 +1007,7 @@ SLEEP SCORE            ${sleepScore ?: "--"}
 
         return current
     }
+
 
     private fun appendLog(
         message: String
