@@ -6,8 +6,13 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
 import com.samsung.android.sdk.health.data.HealthDataService
 import com.samsung.android.sdk.health.data.HealthDataStore
+import com.samsung.android.sdk.health.data.permission.AccessType
+import com.samsung.android.sdk.health.data.permission.Permission
+import com.samsung.android.sdk.health.data.request.DataTypes
+import kotlinx.coroutines.launch
 
 class MainActivity : AppCompatActivity() {
 
@@ -16,10 +21,23 @@ class MainActivity : AppCompatActivity() {
 
     private var healthStore: HealthDataStore? = null
 
+    private val requiredPermissions by lazy {
+        setOf(
+            Permission.of(
+                DataTypes.ENERGY_SCORE,
+                AccessType.READ
+            ),
+            Permission.of(
+                DataTypes.SLEEP,
+                AccessType.READ
+            )
+        )
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // 启动时仍然不碰 Samsung Health
+        // 启动时仍然不主动访问 Samsung Health
         buildUi()
     }
 
@@ -39,7 +57,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         val version = TextView(this).apply {
-            text = "v0.3.2 HEALTH STORE DIAGNOSTIC"
+            text = "v0.3.3 PERMISSION DIAGNOSTIC"
             textSize = 14f
             setPadding(0, dp(6), 0, dp(24))
         }
@@ -160,34 +178,255 @@ SLEEP SCORE            --
         }
 
         val button4 = Button(this).apply {
-            text = "4  CHECK PERMISSIONS（下一步）"
+            text = "4  CHECK PERMISSIONS"
 
             setOnClickListener {
 
-                appendLog(
-                    """
-CHECK PERMISSIONS BLOCKED
+                lifecycleScope.launch {
 
-先确认步骤 3：
-HealthDataService.getStore()
-是否成功。
-                    """.trimIndent()
-                )
+                    try {
+
+                        appendLog(
+                            """
+CHECK PERMISSIONS START
+
+Checking:
+ENERGY_SCORE READ
+SLEEP READ
+                            """.trimIndent()
+                        )
+
+                        val store = getOrCreateStore()
+
+                        val granted =
+                            store.getGrantedPermissions(
+                                requiredPermissions
+                            )
+
+                        val energyPermission =
+                            Permission.of(
+                                DataTypes.ENERGY_SCORE,
+                                AccessType.READ
+                            )
+
+                        val sleepPermission =
+                            Permission.of(
+                                DataTypes.SLEEP,
+                                AccessType.READ
+                            )
+
+                        val energyGranted =
+                            granted.contains(
+                                energyPermission
+                            )
+
+                        val sleepGranted =
+                            granted.contains(
+                                sleepPermission
+                            )
+
+                        val allGranted =
+                            granted.containsAll(
+                                requiredPermissions
+                            )
+
+                        appendLog(
+                            """
+CHECK PERMISSIONS OK
+
+ENERGY_SCORE READ:
+$energyGranted
+
+SLEEP READ:
+$sleepGranted
+
+ALL REQUIRED:
+$allGranted
+
+Granted count:
+${granted.size}
+                            """.trimIndent()
+                        )
+
+                        status.text = """
+APP START              OK
+SDK AAR                FOUND
+SDK CLASS              OK
+HEALTH DATA STORE      OK
+
+PERMISSION             ${if (allGranted) "OK" else "MISSING"}
+
+ENERGY PERMISSION      ${if (energyGranted) "GRANTED" else "MISSING"}
+SLEEP PERMISSION       ${if (sleepGranted) "GRANTED" else "MISSING"}
+
+ENERGY SCORE           --
+SLEEP SCORE            --
+                        """.trimIndent()
+
+                    } catch (t: Throwable) {
+
+                        showAsyncError(
+                            "CHECK PERMISSIONS",
+                            t
+                        )
+                    }
+                }
             }
         }
 
         val button5 = Button(this).apply {
-            text = "5  REQUEST PERMISSIONS（下一步）"
+            text = "5  REQUEST PERMISSIONS"
 
             setOnClickListener {
 
-                appendLog(
-                    """
-REQUEST PERMISSIONS BLOCKED
+                lifecycleScope.launch {
 
-暂时不会弹出 Samsung Health 授权页。
-                    """.trimIndent()
-                )
+                    try {
+
+                        appendLog(
+                            """
+REQUEST PERMISSIONS START
+
+Requesting:
+ENERGY_SCORE READ
+SLEEP READ
+                            """.trimIndent()
+                        )
+
+                        val store = getOrCreateStore()
+
+                        val before =
+                            store.getGrantedPermissions(
+                                requiredPermissions
+                            )
+
+                        if (
+                            before.containsAll(
+                                requiredPermissions
+                            )
+                        ) {
+
+                            appendLog(
+                                """
+PERMISSIONS ALREADY GRANTED
+
+No permission popup required.
+                                """.trimIndent()
+                            )
+
+                            status.text = """
+APP START              OK
+SDK AAR                FOUND
+SDK CLASS              OK
+HEALTH DATA STORE      OK
+
+PERMISSION             OK
+
+ENERGY PERMISSION      GRANTED
+SLEEP PERMISSION       GRANTED
+
+ENERGY SCORE           --
+SLEEP SCORE            --
+                            """.trimIndent()
+
+                            return@launch
+                        }
+
+                        val missing =
+                            requiredPermissions
+                                .toMutableSet()
+                                .apply {
+                                    removeAll(before)
+                                }
+
+                        appendLog(
+                            """
+Missing permission count:
+${missing.size}
+
+Opening Samsung Health permission UI...
+                            """.trimIndent()
+                        )
+
+                        val result =
+                            store.requestPermissions(
+                                missing,
+                                this@MainActivity
+                            )
+
+                        val after =
+                            store.getGrantedPermissions(
+                                requiredPermissions
+                            )
+
+                        val energyPermission =
+                            Permission.of(
+                                DataTypes.ENERGY_SCORE,
+                                AccessType.READ
+                            )
+
+                        val sleepPermission =
+                            Permission.of(
+                                DataTypes.SLEEP,
+                                AccessType.READ
+                            )
+
+                        val energyGranted =
+                            after.contains(
+                                energyPermission
+                            )
+
+                        val sleepGranted =
+                            after.contains(
+                                sleepPermission
+                            )
+
+                        val allGranted =
+                            after.containsAll(
+                                requiredPermissions
+                            )
+
+                        appendLog(
+                            """
+REQUEST PERMISSIONS RETURNED
+
+Returned count:
+${result.size}
+
+ENERGY_SCORE READ:
+$energyGranted
+
+SLEEP READ:
+$sleepGranted
+
+ALL REQUIRED:
+$allGranted
+                            """.trimIndent()
+                        )
+
+                        status.text = """
+APP START              OK
+SDK AAR                FOUND
+SDK CLASS              OK
+HEALTH DATA STORE      OK
+
+PERMISSION             ${if (allGranted) "OK" else "MISSING"}
+
+ENERGY PERMISSION      ${if (energyGranted) "GRANTED" else "MISSING"}
+SLEEP PERMISSION       ${if (sleepGranted) "GRANTED" else "MISSING"}
+
+ENERGY SCORE           --
+SLEEP SCORE            --
+                        """.trimIndent()
+
+                    } catch (t: Throwable) {
+
+                        showAsyncError(
+                            "REQUEST PERMISSIONS",
+                            t
+                        )
+                    }
+                }
             }
         }
 
@@ -195,7 +434,14 @@ REQUEST PERMISSIONS BLOCKED
             text = "6  READ ENERGY（下一步）"
 
             setOnClickListener {
-                appendLog("ENERGY READ BLOCKED")
+
+                appendLog(
+                    """
+ENERGY READ BLOCKED
+
+先完成权限测试。
+                    """.trimIndent()
+                )
             }
         }
 
@@ -203,7 +449,14 @@ REQUEST PERMISSIONS BLOCKED
             text = "7  READ SLEEP（下一步）"
 
             setOnClickListener {
-                appendLog("SLEEP READ BLOCKED")
+
+                appendLog(
+                    """
+SLEEP READ BLOCKED
+
+先完成权限测试。
+                    """.trimIndent()
+                )
             }
         }
 
@@ -223,17 +476,22 @@ REQUEST PERMISSIONS BLOCKED
         log = TextView(this).apply {
 
             text = """
-v0.3.2 启动成功。
+v0.3.3 启动成功。
 
-启动阶段不会访问 Samsung Health。
-
-请依次测试：
+本轮目标：
 
 1  测试 APP
 2  测试 SAMSUNG HEALTH SDK
 3  GET HEALTH DATA STORE
+4  CHECK PERMISSIONS
+5  REQUEST PERMISSIONS
 
-步骤 3 是本轮关键测试。
+只测试：
+
+ENERGY_SCORE READ
+SLEEP READ
+
+步骤 6 / 7 仍然锁定。
             """.trimIndent()
 
             textSize = 14f
@@ -265,6 +523,32 @@ v0.3.2 启动成功。
         setContentView(scroll)
     }
 
+    private fun getOrCreateStore(): HealthDataStore {
+
+        val existing = healthStore
+
+        if (existing != null) {
+            return existing
+        }
+
+        appendLog(
+            "HealthDataStore was null. Creating store..."
+        )
+
+        val store =
+            HealthDataService.getStore(
+                applicationContext
+            )
+
+        healthStore = store
+
+        appendLog(
+            "HealthDataStore created successfully."
+        )
+
+        return store
+    }
+
     private fun safeRun(
         name: String,
         action: () -> Unit
@@ -276,19 +560,33 @@ v0.3.2 启动成功。
 
         } catch (t: Throwable) {
 
-            val root = rootCause(t)
+            showAsyncError(
+                name,
+                t
+            )
+        }
+    }
 
-            appendLog(
-                """
+    private fun showAsyncError(
+        name: String,
+        throwable: Throwable
+    ) {
+
+        val root = rootCause(
+            throwable
+        )
+
+        appendLog(
+            """
 ==============================
 
 $name ERROR
 
 Exception:
-${t.javaClass.name}
+${throwable.javaClass.name}
 
 Message:
-${t.message ?: "(no message)"}
+${throwable.message ?: "(no message)"}
 
 ROOT CAUSE:
 ${root.javaClass.name}
@@ -297,10 +595,10 @@ ROOT MESSAGE:
 ${root.message ?: "(no message)"}
 
 ==============================
-                """.trimIndent()
-            )
+            """.trimIndent()
+        )
 
-            status.text = """
+        status.text = """
 APP START              OK
 
 $name
@@ -308,11 +606,10 @@ ERROR
 
 ${root.javaClass.simpleName}
 
-PERMISSION             NOT TESTED
+PERMISSION             ERROR
 ENERGY SCORE           --
 SLEEP SCORE            --
-            """.trimIndent()
-        }
+        """.trimIndent()
     }
 
     private fun rootCause(
