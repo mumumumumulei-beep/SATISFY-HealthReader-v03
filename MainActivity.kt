@@ -1156,4 +1156,409 @@ $updatedAt
                             putDataMapRequest
                                 .dataMap
                                 .putString(
-                                   
+                                    "energy_date",
+                                    energyDateToSend
+                                )
+
+
+                            putDataMapRequest
+                                .dataMap
+                                .putBoolean(
+                                    "energy_stale",
+                                    false
+                                )
+
+
+                            putDataMapRequest
+                                .dataMap
+                                .putInt(
+                                    "sleep_score",
+                                    sleepToSend
+                                )
+
+
+                            putDataMapRequest
+                                .dataMap
+                                .putString(
+                                    "sleep_date",
+                                    sleepDateToSend
+                                )
+
+
+                            putDataMapRequest
+                                .dataMap
+                                .putLong(
+                                    "updated_at",
+                                    updatedAt
+                                )
+
+
+                            val request =
+                                putDataMapRequest
+                                    .asPutDataRequest()
+                                    .setUrgent()
+
+
+                            val result =
+                                Wearable
+                                    .getDataClient(
+                                        this@MainActivity
+                                    )
+                                    .putDataItem(
+                                        request
+                                    )
+                                    .await()
+
+
+                            watchSyncStatus =
+                                "PUT DATA OK"
+
+
+                            appendLog(
+                                """
+WATCH SYNC OK
+
+URI:
+${result.uri}
+
+Energy:
+${if (energyToSend >= 0f) energyToSend else "--"}
+
+Sleep:
+${if (sleepToSend >= 0) sleepToSend else "--"}
+
+The DataItem was accepted
+by the Wear Data Layer.
+                                """.trimIndent()
+                            )
+
+
+                            refreshStatus()
+
+                        } catch (
+                            t: Throwable
+                        ) {
+
+                            watchSyncStatus =
+                                "ERROR"
+
+                            showError(
+                                "SEND SCORES TO WATCH",
+                                t
+                            )
+                        }
+                    }
+                }
+            }
+
+
+        val clear =
+            Button(this).apply {
+
+                text =
+                    "清空诊断日志"
+
+                setOnClickListener {
+
+                    log.text =
+                        ""
+                }
+            }
+
+
+        val logTitle =
+            TextView(this).apply {
+
+                text =
+                    "\nDIAGNOSTIC LOG"
+
+                textSize =
+                    18f
+            }
+
+
+        log =
+            TextView(this).apply {
+
+                text =
+                    """
+v0.4.0 DATA LAYER DIAGNOSTIC
+
+Samsung Health Reader:
+保持 v0.3.6 成功逻辑。
+
+REAL DATA:
+Energy → Samsung Health
+Sleep  → Samsung Health
+
+Data Layer path:
+$DATA_PATH
+
+测试顺序：
+
+3 GET STORE
+4 CHECK PERMISSIONS
+6 READ ENERGY
+7 READ SLEEP
+8 CHECK WATCH CONNECTION
+9 SEND SCORES TO WATCH
+
+Button 9 不使用固定 77 / 83。
+
+它发送当前真正读取到的
+energyScore / sleepScore。
+
+没有数据：
+Energy = -1f
+Sleep  = -1
+
+下一阶段：
+Watch Receiver
+                    """.trimIndent()
+
+                textSize =
+                    14f
+
+                setPadding(
+                    0,
+                    dp(10),
+                    0,
+                    dp(50)
+                )
+
+                setTextIsSelectable(
+                    true
+                )
+            }
+
+
+        root.addView(title)
+        root.addView(version)
+        root.addView(status)
+
+        root.addView(button1)
+        root.addView(button2)
+        root.addView(button3)
+        root.addView(button4)
+        root.addView(button5)
+        root.addView(button6)
+        root.addView(button7)
+        root.addView(button8)
+        root.addView(button9)
+
+        root.addView(clear)
+
+        root.addView(logTitle)
+        root.addView(log)
+
+
+        val scroll =
+            ScrollView(this)
+
+        scroll.addView(root)
+
+        setContentView(scroll)
+    }
+
+
+    private suspend fun ensurePermission(
+        store: HealthDataStore,
+        permission: Permission,
+        name: String
+    ) {
+
+        val granted =
+            store.getGrantedPermissions(
+                setOf(
+                    permission
+                )
+            )
+
+
+        if (
+            !granted.contains(
+                permission
+            )
+        ) {
+
+            throw IllegalStateException(
+                "$name READ permission is not granted"
+            )
+        }
+    }
+
+
+    private fun getOrCreateStore():
+        HealthDataStore {
+
+        val existing =
+            healthStore
+
+
+        if (
+            existing != null
+        ) {
+
+            return existing
+        }
+
+
+        appendLog(
+            "Creating HealthDataStore..."
+        )
+
+
+        val store =
+            HealthDataService.getStore(
+                applicationContext
+            )
+
+
+        healthStore =
+            store
+
+
+        appendLog(
+            "HealthDataStore created successfully."
+        )
+
+
+        refreshStatus()
+
+
+        return store
+    }
+
+
+    private fun refreshStatus() {
+
+        val energyText =
+            energyScore
+                ?.let {
+
+                    String.format(
+                        "%.0f",
+                        it
+                    )
+                }
+                ?: "--"
+
+
+        val sleepText =
+            sleepScore
+                ?.toString()
+                ?: "--"
+
+
+        status.text =
+            """
+APP START              OK
+SDK AAR                FOUND
+HEALTH DATA STORE      ${if (healthStore != null) "OK" else "NOT TESTED"}
+
+PERMISSION             $permissionStatus
+ENERGY PERMISSION      $energyPermissionStatus
+SLEEP PERMISSION       $sleepPermissionStatus
+
+ENERGY SCORE           $energyText
+ENERGY DATE            ${energyDate ?: "--"}
+
+SLEEP SCORE            $sleepText
+SLEEP DATE             ${sleepDate ?: "--"}
+
+WATCH CONNECTION       $watchConnectionStatus
+WATCH SYNC             $watchSyncStatus
+            """.trimIndent()
+    }
+
+
+    private fun safeRun(
+        name: String,
+        action: () -> Unit
+    ) {
+
+        try {
+
+            action()
+
+        } catch (
+            t: Throwable
+        ) {
+
+            showError(
+                name,
+                t
+            )
+        }
+    }
+
+
+    private fun showError(
+        name: String,
+        throwable: Throwable
+    ) {
+
+        val root =
+            rootCause(
+                throwable
+            )
+
+
+        appendLog(
+            """
+==============================
+
+$name ERROR
+
+Exception:
+${throwable.javaClass.name}
+
+Message:
+${throwable.message ?: "(no message)"}
+
+ROOT CAUSE:
+${root.javaClass.name}
+
+ROOT MESSAGE:
+${root.message ?: "(no message)"}
+
+==============================
+            """.trimIndent()
+        )
+
+
+        refreshStatus()
+    }
+
+
+    private fun rootCause(
+        throwable: Throwable
+    ): Throwable {
+
+        var current =
+            throwable
+
+
+        while (
+            current.cause != null &&
+            current.cause !== current
+        ) {
+
+            current =
+                current.cause!!
+        }
+
+
+        return current
+    }
+
+
+    private fun appendLog(
+        message: String
+    ) {
+
+        log.append(
+            "\n\n$message\n"
+        )
+    }
+}
