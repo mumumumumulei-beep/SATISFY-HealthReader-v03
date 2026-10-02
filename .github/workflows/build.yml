@@ -1,4 +1,4 @@
-name: Build SATISFY Health Reader v0.3
+name: Build SATISFY Health Reader v0.3.2
 
 on:
   workflow_dispatch:
@@ -30,16 +30,38 @@ jobs:
         run: |
           set -e
 
+          echo "===== CLEAN OLD PROJECT ====="
+          rm -rf app
+          rm -rf apk-output
+
+          echo "===== CREATE PROJECT ====="
           mkdir -p app/libs
           mkdir -p app/src/main/java/com/satisfy/healthreader
           mkdir -p app/src/main/res/values
 
-          cp samsung-health-data-api-1.1.0.aar app/libs/samsung-health-data-api-1.1.0.aar
-          cp AndroidManifest.xml app/src/main/AndroidManifest.xml
-          cp MainActivity.kt app/src/main/java/com/satisfy/healthreader/MainActivity.kt
-          cp styles.xml app/src/main/res/values/styles.xml
+          echo "===== COPY CURRENT ROOT FILES ====="
+          cp samsung-health-data-api-1.1.0.aar \
+            app/libs/samsung-health-data-api-1.1.0.aar
 
-          echo "Project files:"
+          cp AndroidManifest.xml \
+            app/src/main/AndroidManifest.xml
+
+          cp MainActivity.kt \
+            app/src/main/java/com/satisfy/healthreader/MainActivity.kt
+
+          cp styles.xml \
+            app/src/main/res/values/styles.xml
+
+          echo "===== VERIFY MAINACTIVITY ====="
+          grep -n "v0.3.2" \
+            app/src/main/java/com/satisfy/healthreader/MainActivity.kt
+
+          echo "===== MAINACTIVITY SHA256 ====="
+          sha256sum MainActivity.kt
+          sha256sum \
+            app/src/main/java/com/satisfy/healthreader/MainActivity.kt
+
+          echo "===== PROJECT FILES ====="
           find app -type f | sort
 
       - name: Write root Gradle files
@@ -47,39 +69,39 @@ jobs:
         run: |
           set -e
 
-          printf '%s\n' \
-          'plugins {' \
-          '    id("com.android.application") version "8.7.3" apply false' \
-          '    id("org.jetbrains.kotlin.android") version "2.0.21" apply false' \
-          '}' \
-          > build.gradle.kts
+          cat > build.gradle.kts <<'EOF'
+          plugins {
+              id("com.android.application") version "8.7.3" apply false
+              id("org.jetbrains.kotlin.android") version "2.0.21" apply false
+          }
+          EOF
 
-          printf '%s\n' \
-          'pluginManagement {' \
-          '    repositories {' \
-          '        google()' \
-          '        mavenCentral()' \
-          '        gradlePluginPortal()' \
-          '    }' \
-          '}' \
-          '' \
-          'dependencyResolutionManagement {' \
-          '    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)' \
-          '    repositories {' \
-          '        google()' \
-          '        mavenCentral()' \
-          '    }' \
-          '}' \
-          '' \
-          'rootProject.name = "SATISFY-HealthReader-v03"' \
-          'include(":app")' \
-          > settings.gradle.kts
+          cat > settings.gradle.kts <<'EOF'
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
 
-          printf '%s\n' \
-          'org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8' \
-          'android.useAndroidX=true' \
-          'kotlin.code.style=official' \
-          > gradle.properties
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+
+          rootProject.name = "SATISFY-HealthReader-v032"
+          include(":app")
+          EOF
+
+          cat > gradle.properties <<'EOF'
+          org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
+          android.useAndroidX=true
+          kotlin.code.style=official
+          EOF
 
           echo "===== build.gradle.kts ====="
           cat build.gradle.kts
@@ -92,63 +114,96 @@ jobs:
         run: |
           set -e
 
-          mkdir -p app
+          cat > app/build.gradle.kts <<'EOF'
+          plugins {
+              id("com.android.application")
+              id("org.jetbrains.kotlin.android")
+          }
 
-          printf '%s\n' \
-          'plugins {' \
-          '    id("com.android.application")' \
-          '    id("org.jetbrains.kotlin.android")' \
-          '}' \
-          '' \
-          'android {' \
-          '    namespace = "com.satisfy.healthreader"' \
-          '    compileSdk = 35' \
-          '' \
-          '    defaultConfig {' \
-          '        applicationId = "com.satisfy.healthreader"' \
-          '        minSdk = 29' \
-          '        targetSdk = 35' \
-          '        versionCode = 3' \
-          '        versionName = "0.3.0"' \
-          '    }' \
-          '' \
-          '    compileOptions {' \
-          '        sourceCompatibility = JavaVersion.VERSION_17' \
-          '        targetCompatibility = JavaVersion.VERSION_17' \
-          '    }' \
-          '' \
-          '    kotlinOptions {' \
-          '        jvmTarget = "17"' \
-          '    }' \
-          '}' \
-          '' \
-          'dependencies {' \
-          '    implementation(files("libs/samsung-health-data-api-1.1.0.aar"))' \
-          '    implementation("androidx.core:core-ktx:1.15.0")' \
-          '    implementation("androidx.appcompat:appcompat:1.7.0")' \
-          '    implementation("com.google.android.material:material:1.12.0")' \
-          '    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")' \
-          '}' \
-          > app/build.gradle.kts
+          android {
+              namespace = "com.satisfy.healthreader"
+              compileSdk = 35
+
+              defaultConfig {
+                  applicationId = "com.satisfy.healthreader"
+                  minSdk = 29
+                  targetSdk = 35
+
+                  versionCode = 32
+                  versionName = "0.3.2"
+              }
+
+              compileOptions {
+                  sourceCompatibility = JavaVersion.VERSION_17
+                  targetCompatibility = JavaVersion.VERSION_17
+              }
+
+              kotlinOptions {
+                  jvmTarget = "17"
+              }
+          }
+
+          dependencies {
+              implementation(
+                  files("libs/samsung-health-data-api-1.1.0.aar")
+              )
+
+              implementation(
+                  "androidx.core:core-ktx:1.15.0"
+              )
+
+              implementation(
+                  "androidx.appcompat:appcompat:1.7.0"
+              )
+
+              implementation(
+                  "com.google.android.material:material:1.12.0"
+              )
+
+              implementation(
+                  "androidx.lifecycle:lifecycle-runtime-ktx:2.8.7"
+              )
+          }
+          EOF
 
           echo "===== app/build.gradle.kts ====="
           cat app/build.gradle.kts
+
+      - name: Verify source before build
+        shell: bash
+        run: |
+          set -e
+
+          echo "===== SOURCE USED FOR BUILD ====="
+
+          grep -n "v0.3.2" \
+            app/src/main/java/com/satisfy/healthreader/MainActivity.kt
+
+          echo "===== FIRST 40 LINES ====="
+
+          head -n 40 \
+            app/src/main/java/com/satisfy/healthreader/MainActivity.kt
 
       - name: Build APK
         shell: bash
         run: |
           set -e
 
-          gradle :app:assembleDebug \
+          gradle clean :app:assembleDebug \
             --stacktrace \
-            --no-daemon
+            --no-daemon \
+            --rerun-tasks
 
       - name: Find APK
         if: success()
         shell: bash
         run: |
           echo "===== APK FILES ====="
-          find app -type f -name "*.apk" -print
+
+          find app/build/outputs/apk \
+            -type f \
+            -name "*.apk" \
+            -print
 
       - name: Collect APK
         if: success()
@@ -158,22 +213,35 @@ jobs:
 
           mkdir -p apk-output
 
-          APK=$(find app/build/outputs/apk -type f -name "*.apk" | head -n 1)
+          APK=$(
+            find app/build/outputs/apk/debug \
+              -type f \
+              -name "*.apk" \
+              | head -n 1
+          )
 
           if [ -z "$APK" ]; then
             echo "ERROR: APK not found"
             exit 1
           fi
 
-          cp "$APK" apk-output/SATISFY_HealthReader_v0.3.apk
+          cp "$APK" \
+            apk-output/SATISFY_HealthReader_v0.3.2.apk
 
           echo "===== FINAL APK ====="
-          ls -lh apk-output/SATISFY_HealthReader_v0.3.apk
+
+          ls -lh \
+            apk-output/SATISFY_HealthReader_v0.3.2.apk
+
+          echo "===== APK SHA256 ====="
+
+          sha256sum \
+            apk-output/SATISFY_HealthReader_v0.3.2.apk
 
       - name: Upload APK
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: SATISFY-HealthReader-v0.3-APK
-          path: apk-output/SATISFY_HealthReader_v0.3.apk
+          name: SATISFY-HealthReader-v0.3.2-APK
+          path: apk-output/SATISFY_HealthReader_v0.3.2.apk
           if-no-files-found: error
