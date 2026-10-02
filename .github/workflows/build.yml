@@ -1,25 +1,32 @@
-name: Build SATISFY Health Reader v0.3.6
+name: Build SATISFY Health Bridge v0.4.0
 
 on:
   workflow_dispatch:
+
   push:
     branches:
       - main
 
+
 jobs:
+
   build:
+
     runs-on: ubuntu-latest
+
 
     steps:
 
       - name: Checkout
         uses: actions/checkout@v4
 
+
       - name: Setup Java 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
+
 
       - name: Setup Gradle 8.9
         uses: gradle/actions/setup-gradle@v4
@@ -37,16 +44,19 @@ jobs:
           rm -rf app
           rm -rf apk-output
 
+
           echo "===== CREATE ====="
 
           mkdir -p app/libs
           mkdir -p app/src/main/java/com/satisfy/healthreader
           mkdir -p app/src/main/res/values
 
+
           echo "===== COPY SAMSUNG SDK ====="
 
           cp samsung-health-data-api-1.1.0.aar \
             app/libs/samsung-health-data-api-1.1.0.aar
+
 
           echo "===== COPY APP FILES ====="
 
@@ -59,9 +69,11 @@ jobs:
           cp styles.xml \
             app/src/main/res/values/styles.xml
 
+
           echo "===== FILE LIST ====="
 
           find app -type f | sort
+
 
           echo "===== SAMSUNG SDK ====="
 
@@ -85,8 +97,10 @@ jobs:
           }
           EOF
 
+
           cat > settings.gradle.kts <<'EOF'
           pluginManagement {
+
               repositories {
                   google()
                   mavenCentral()
@@ -94,8 +108,12 @@ jobs:
               }
           }
 
+
           dependencyResolutionManagement {
-              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+
+              repositoriesMode.set(
+                  RepositoriesMode.FAIL_ON_PROJECT_REPOS
+              )
 
               repositories {
                   google()
@@ -103,10 +121,14 @@ jobs:
               }
           }
 
-          rootProject.name = "SATISFY-HealthReader-v036"
+
+          rootProject.name =
+              "SATISFY-HealthBridge-v040"
+
 
           include(":app")
           EOF
+
 
           cat > gradle.properties <<'EOF'
           org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
@@ -127,92 +149,140 @@ jobs:
               id("org.jetbrains.kotlin.plugin.parcelize")
           }
 
-          android {
-              namespace = "com.satisfy.healthreader"
 
-              compileSdk = 35
+          android {
+
+              namespace =
+                  "com.satisfy.healthreader"
+
+
+              compileSdk =
+                  35
+
 
               defaultConfig {
-                  applicationId = "com.satisfy.healthreader"
 
-                  minSdk = 29
-                  targetSdk = 35
+                  applicationId =
+                      "com.satisfy.healthreader"
 
-                  versionCode = 36
-                  versionName = "0.3.6"
+                  minSdk =
+                      29
+
+                  targetSdk =
+                      35
+
+                  versionCode =
+                      40
+
+                  versionName =
+                      "0.4.0"
               }
+
 
               compileOptions {
-                  sourceCompatibility = JavaVersion.VERSION_17
-                  targetCompatibility = JavaVersion.VERSION_17
+
+                  sourceCompatibility =
+                      JavaVersion.VERSION_17
+
+                  targetCompatibility =
+                      JavaVersion.VERSION_17
               }
+
 
               kotlinOptions {
-                  jvmTarget = "17"
+
+                  jvmTarget =
+                      "17"
               }
 
+
               buildTypes {
+
                   debug {
-                      isMinifyEnabled = false
+
+                      isMinifyEnabled =
+                          false
                   }
               }
           }
+
 
           dependencies {
 
               /*
                * Samsung Health Data SDK 1.1.0
                */
+
               implementation(
                   files(
                       "libs/samsung-health-data-api-1.1.0.aar"
                   )
               )
 
+
               /*
-               * Samsung SDK runtime dependency:
-               * kotlinx.parcelize.Parceler
+               * Samsung SDK runtime
                */
+
               implementation(
                   "org.jetbrains.kotlin:kotlin-parcelize-runtime:2.0.21"
               )
 
-              /*
-               * Samsung SDK runtime dependency:
-               * Gson / GsonBuilder / JsonReader / JsonWriter
-               */
+
               implementation(
                   "com.google.code.gson:gson:2.11.0"
               )
 
-              /*
-               * Samsung SDK coroutine runtime
-               */
+
               implementation(
                   "org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0"
               )
+
 
               implementation(
                   "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0"
               )
 
+
               /*
-               * Android app dependencies
+               * Android
                */
+
               implementation(
                   "androidx.core:core-ktx:1.15.0"
               )
+
 
               implementation(
                   "androidx.appcompat:appcompat:1.7.0"
               )
 
+
               implementation(
                   "com.google.android.material:material:1.12.0"
               )
 
+
               implementation(
                   "androidx.lifecycle:lifecycle-runtime-ktx:2.8.7"
+              )
+
+
+              /*
+               * Wear OS Data Layer
+               */
+
+              implementation(
+                  "com.google.android.gms:play-services-wearable:18.2.0"
+              )
+
+
+              /*
+               * Task.await()
+               */
+
+              implementation(
+                  "org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.9.0"
               )
           }
           EOF
@@ -223,6 +293,7 @@ jobs:
         run: |
           set -e
 
+
           echo "===== VERSION ====="
 
           grep -n "versionCode" \
@@ -231,31 +302,35 @@ jobs:
           grep -n "versionName" \
             app/build.gradle.kts
 
-          echo "===== PARCELIZE ====="
 
-          grep -n "parcelize" \
-            build.gradle.kts
+          echo "===== SAMSUNG RUNTIME ====="
 
           grep -n "parcelize" \
             app/build.gradle.kts
-
-          echo "===== GSON ====="
 
           grep -n "gson" \
             app/build.gradle.kts
-
-          echo "===== COROUTINES ====="
 
           grep -n "coroutines" \
             app/build.gradle.kts
 
 
-      - name: Verify Health Reader source
+          echo "===== WEAR DATA LAYER ====="
+
+          grep -n "play-services-wearable" \
+            app/build.gradle.kts
+
+          grep -n "coroutines-play-services" \
+            app/build.gradle.kts
+
+
+      - name: Verify Health Bridge source
         shell: bash
         run: |
           set -e
 
-          echo "===== HEALTH SOURCE ====="
+
+          echo "===== SAMSUNG HEALTH ====="
 
           grep -n "ENERGY_SCORE" \
             app/src/main/java/com/satisfy/healthreader/MainActivity.kt \
@@ -265,13 +340,18 @@ jobs:
             app/src/main/java/com/satisfy/healthreader/MainActivity.kt \
             || true
 
-          echo "===== TIME METHODS ====="
 
-          grep -n "getStartLocalDateTime" \
+          echo "===== DATA LAYER ====="
+
+          grep -n "satisfy/health_scores" \
             app/src/main/java/com/satisfy/healthreader/MainActivity.kt \
             || true
 
-          grep -n "getEndLocalDateTime" \
+          grep -n "getNodeClient" \
+            app/src/main/java/com/satisfy/healthreader/MainActivity.kt \
+            || true
+
+          grep -n "putDataItem" \
             app/src/main/java/com/satisfy/healthreader/MainActivity.kt \
             || true
 
@@ -281,7 +361,9 @@ jobs:
         run: |
           set -e
 
+
           echo "===== DEBUG RUNTIME CLASSPATH ====="
+
 
           gradle \
             :app:dependencies \
@@ -294,7 +376,9 @@ jobs:
         run: |
           set -e
 
+
           echo "===== BUILD START ====="
+
 
           gradle \
             clean \
@@ -302,6 +386,7 @@ jobs:
             --stacktrace \
             --no-daemon \
             --rerun-tasks
+
 
           echo "===== BUILD COMPLETE ====="
 
@@ -311,7 +396,9 @@ jobs:
         run: |
           set -e
 
+
           echo "===== APK FILES ====="
+
 
           find app/build/outputs/apk \
             -type f \
@@ -324,7 +411,9 @@ jobs:
         run: |
           set -e
 
+
           mkdir -p apk-output
+
 
           APK=$(
             find app/build/outputs/apk/debug \
@@ -333,44 +422,40 @@ jobs:
               | head -n 1
           )
 
+
           if [ -z "$APK" ]; then
-            echo "ERROR: APK not found"
-            exit 1
+
+              echo "ERROR: APK not found"
+
+              exit 1
+
           fi
 
+
           cp "$APK" \
-            apk-output/SATISFY_HealthReader_v0.3.6.apk
+            apk-output/SATISFY_HealthBridge_PHONE_v0.4.0.apk
+
 
           echo "===== FINAL APK ====="
 
+
           ls -lh \
-            apk-output/SATISFY_HealthReader_v0.3.6.apk
+            apk-output/SATISFY_HealthBridge_PHONE_v0.4.0.apk
+
 
           echo "===== SHA256 ====="
 
+
           sha256sum \
-            apk-output/SATISFY_HealthReader_v0.3.6.apk
-
-
-      - name: Inspect APK contents
-        shell: bash
-        run: |
-          set -e
-
-          APK="apk-output/SATISFY_HealthReader_v0.3.6.apk"
-
-          echo "===== APK CONTENTS ====="
-
-          unzip -l "$APK" | head -n 80
-
-          echo ""
-          echo "APK successfully contains compiled DEX."
-          echo "Runtime dependency resolution was checked before build."
+            apk-output/SATISFY_HealthBridge_PHONE_v0.4.0.apk
 
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: SATISFY-HealthReader-v0.3.6-APK
-          path: apk-output/SATISFY_HealthReader_v0.3.6.apk
+
+          name: SATISFY-HealthBridge-PHONE-v0.4.0-APK
+
+          path: apk-output/SATISFY_HealthBridge_PHONE_v0.4.0.apk
+
           if-no-files-found: error
