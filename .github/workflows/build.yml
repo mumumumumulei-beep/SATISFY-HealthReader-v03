@@ -1,4 +1,4 @@
-name: Build SATISFY Health Reader v0.3.3
+name: Build SATISFY Health Reader v0.3.5
 
 on:
   workflow_dispatch:
@@ -58,19 +58,13 @@ jobs:
 
           echo "===== VERIFY MAINACTIVITY ====="
 
-          if grep -q "v0.3.3" \
-            app/src/main/java/com/satisfy/healthreader/MainActivity.kt
-          then
-            echo "MainActivity version: v0.3.3 OK"
-          else
-            echo "WARNING: v0.3.3 text not found in MainActivity.kt"
-          fi
+          grep -n "REAL DATA READ" \
+            app/src/main/java/com/satisfy/healthreader/MainActivity.kt \
+            || true
 
-          echo "===== ROOT MAINACTIVITY SHA256 ====="
+          echo "===== SHA256 ====="
 
           sha256sum MainActivity.kt
-
-          echo "===== COPIED MAINACTIVITY SHA256 ====="
 
           sha256sum \
             app/src/main/java/com/satisfy/healthreader/MainActivity.kt
@@ -89,6 +83,7 @@ jobs:
           plugins {
               id("com.android.application") version "8.7.3" apply false
               id("org.jetbrains.kotlin.android") version "2.0.21" apply false
+              id("org.jetbrains.kotlin.plugin.parcelize") version "2.0.21" apply false
           }
           EOF
 
@@ -110,7 +105,7 @@ jobs:
               }
           }
 
-          rootProject.name = "SATISFY-HealthReader-v033"
+          rootProject.name = "SATISFY-HealthReader-v035"
 
           include(":app")
           EOF
@@ -121,27 +116,17 @@ jobs:
           kotlin.code.style=official
           EOF
 
-          echo "===== build.gradle.kts ====="
-          cat build.gradle.kts
-
-          echo "===== settings.gradle.kts ====="
-          cat settings.gradle.kts
-
-          echo "===== gradle.properties ====="
-          cat gradle.properties
-
 
       - name: Write app Gradle
         shell: bash
         run: |
           set -e
 
-          mkdir -p app
-
           cat > app/build.gradle.kts <<'EOF'
           plugins {
               id("com.android.application")
               id("org.jetbrains.kotlin.android")
+              id("org.jetbrains.kotlin.plugin.parcelize")
           }
 
           android {
@@ -155,8 +140,8 @@ jobs:
                   minSdk = 29
                   targetSdk = 35
 
-                  versionCode = 33
-                  versionName = "0.3.3"
+                  versionCode = 35
+                  versionName = "0.3.5"
               }
 
               compileOptions {
@@ -178,6 +163,10 @@ jobs:
               )
 
               implementation(
+                  "org.jetbrains.kotlin:kotlin-parcelize-runtime:2.0.21"
+              )
+
+              implementation(
                   "androidx.core:core-ktx:1.15.0"
               )
 
@@ -195,9 +184,29 @@ jobs:
           }
           EOF
 
-          echo "===== app/build.gradle.kts ====="
 
-          cat app/build.gradle.kts
+      - name: Verify Parcelize configuration
+        shell: bash
+        run: |
+          set -e
+
+          echo "===== PARCELIZE PLUGIN ====="
+
+          grep -n "parcelize" \
+            build.gradle.kts \
+            || true
+
+          grep -n "parcelize" \
+            app/build.gradle.kts \
+            || true
+
+          echo "===== VERSION ====="
+
+          grep -n "versionCode" \
+            app/build.gradle.kts
+
+          grep -n "versionName" \
+            app/build.gradle.kts
 
 
       - name: Verify source before build
@@ -207,34 +216,25 @@ jobs:
 
           echo "===== SOURCE USED FOR BUILD ====="
 
-          echo "MainActivity path:"
-
-          ls -lh \
-            app/src/main/java/com/satisfy/healthreader/MainActivity.kt
-
-          echo "===== VERSION CHECK ====="
-
-          grep -n "v0.3.3" \
+          grep -n "REAL DATA READ" \
             app/src/main/java/com/satisfy/healthreader/MainActivity.kt \
             || true
 
-          echo "===== FIRST 50 LINES ====="
+          echo "===== HEALTH QUERY METHODS ====="
 
-          head -n 50 \
-            app/src/main/java/com/satisfy/healthreader/MainActivity.kt
+          grep -n "getStartLocalDateTime" \
+            app/src/main/java/com/satisfy/healthreader/MainActivity.kt \
+            || true
 
-          echo "===== SOURCE SHA256 ====="
-
-          sha256sum \
-            app/src/main/java/com/satisfy/healthreader/MainActivity.kt
+          grep -n "getEndLocalDateTime" \
+            app/src/main/java/com/satisfy/healthreader/MainActivity.kt \
+            || true
 
 
       - name: Build APK
         shell: bash
         run: |
           set -e
-
-          echo "===== START GRADLE BUILD ====="
 
           gradle clean :app:assembleDebug \
             --stacktrace \
@@ -274,27 +274,22 @@ jobs:
             exit 1
           fi
 
-          echo "Source APK:"
-          echo "$APK"
-
           cp "$APK" \
-            apk-output/SATISFY_HealthReader_v0.3.3.apk
+            apk-output/SATISFY_HealthReader_v0.3.5.apk
 
           echo "===== FINAL APK ====="
 
           ls -lh \
-            apk-output/SATISFY_HealthReader_v0.3.3.apk
-
-          echo "===== FINAL APK SHA256 ====="
+            apk-output/SATISFY_HealthReader_v0.3.5.apk
 
           sha256sum \
-            apk-output/SATISFY_HealthReader_v0.3.3.apk
+            apk-output/SATISFY_HealthReader_v0.3.5.apk
 
 
       - name: Upload APK
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: SATISFY-HealthReader-v0.3.3-APK
-          path: apk-output/SATISFY_HealthReader_v0.3.3.apk
+          name: SATISFY-HealthReader-v0.3.5-APK
+          path: apk-output/SATISFY_HealthReader_v0.3.5.apk
           if-no-files-found: error
