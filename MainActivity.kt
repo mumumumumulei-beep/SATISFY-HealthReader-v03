@@ -11,8 +11,14 @@ import com.samsung.android.sdk.health.data.HealthDataService
 import com.samsung.android.sdk.health.data.HealthDataStore
 import com.samsung.android.sdk.health.data.permission.AccessType
 import com.samsung.android.sdk.health.data.permission.Permission
+import com.samsung.android.sdk.health.data.request.DataType
 import com.samsung.android.sdk.health.data.request.DataTypes
+import com.samsung.android.sdk.health.data.request.LocalDateFilter
+import com.samsung.android.sdk.health.data.request.LocalTimeFilter
+import com.samsung.android.sdk.health.data.request.Ordering
 import kotlinx.coroutines.launch
+import java.time.LocalDate
+import java.time.LocalDateTime
 
 class MainActivity : AppCompatActivity() {
 
@@ -21,34 +27,50 @@ class MainActivity : AppCompatActivity() {
 
     private var healthStore: HealthDataStore? = null
 
+    private var energyScore: Float? = null
+    private var sleepScore: Int? = null
+
+    private val energyPermission by lazy {
+        Permission.of(
+            DataTypes.ENERGY_SCORE,
+            AccessType.READ
+        )
+    }
+
+    private val sleepPermission by lazy {
+        Permission.of(
+            DataTypes.SLEEP,
+            AccessType.READ
+        )
+    }
+
     private val requiredPermissions by lazy {
         setOf(
-            Permission.of(
-                DataTypes.ENERGY_SCORE,
-                AccessType.READ
-            ),
-            Permission.of(
-                DataTypes.SLEEP,
-                AccessType.READ
-            )
+            energyPermission,
+            sleepPermission
         )
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        // 启动时仍然不主动访问 Samsung Health
         buildUi()
     }
 
     private fun buildUi() {
 
         val density = resources.displayMetrics.density
-        fun dp(value: Int) = (value * density).toInt()
+
+        fun dp(value: Int) =
+            (value * density).toInt()
 
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(24), dp(30), dp(24), dp(30))
+            setPadding(
+                dp(24),
+                dp(30),
+                dp(24),
+                dp(30)
+            )
         }
 
         val title = TextView(this).apply {
@@ -57,90 +79,88 @@ class MainActivity : AppCompatActivity() {
         }
 
         val version = TextView(this).apply {
-            text = "v0.3.3 PERMISSION DIAGNOSTIC"
+            text = "v0.3.4 REAL DATA READ"
             textSize = 14f
-            setPadding(0, dp(6), 0, dp(24))
+            setPadding(
+                0,
+                dp(6),
+                0,
+                dp(24)
+            )
         }
 
         status = TextView(this).apply {
-            text = """
-APP START              OK
-SDK AAR                NOT TESTED
-SDK CLASS              NOT TESTED
-HEALTH DATA STORE      NOT TESTED
-
-PERMISSION             NOT TESTED
-ENERGY SCORE           --
-SLEEP SCORE            --
-            """.trimIndent()
-
             textSize = 17f
-            setPadding(0, 0, 0, dp(20))
+            setPadding(
+                0,
+                0,
+                0,
+                dp(20)
+            )
+
+            updateStatus(
+                permission = "NOT TESTED"
+            )
         }
 
         val button1 = Button(this).apply {
+
             text = "1  测试 APP"
 
             setOnClickListener {
 
                 safeRun("APP TEST") {
 
-                    appendLog("APP TEST OK")
+                    appendLog(
+                        "APP TEST OK"
+                    )
 
-                    status.text = """
-APP START              OK
-APP TEST               OK
-
-SDK                     NOT TESTED
-HEALTH DATA STORE       NOT TESTED
-
-PERMISSION              NOT TESTED
-ENERGY SCORE            --
-SLEEP SCORE             --
-                    """.trimIndent()
+                    updateStatus(
+                        permission = "NOT TESTED"
+                    )
                 }
             }
         }
 
         val button2 = Button(this).apply {
-            text = "2  测试 SAMSUNG HEALTH SDK"
+
+            text =
+                "2  测试 SAMSUNG HEALTH SDK"
 
             setOnClickListener {
 
                 safeRun("SDK CLASS TEST") {
 
-                    val clazz = Class.forName(
-                        "com.samsung.android.sdk.health.data.HealthDataService"
-                    )
+                    val clazz =
+                        Class.forName(
+                            "com.samsung.android.sdk.health.data.HealthDataService"
+                        )
 
                     appendLog(
                         """
 SDK CLASS FOUND
+
 ${clazz.name}
                         """.trimIndent()
                     )
 
-                    status.text = """
-APP START              OK
-SDK AAR                FOUND
-SDK CLASS              OK
-
-HEALTH DATA STORE      NOT TESTED
-PERMISSION             NOT TESTED
-
-ENERGY SCORE           --
-SLEEP SCORE            --
-                    """.trimIndent()
+                    updateStatus(
+                        permission = "NOT TESTED"
+                    )
                 }
             }
         }
 
         val button3 = Button(this).apply {
-            text = "3  GET HEALTH DATA STORE"
+
+            text =
+                "3  GET HEALTH DATA STORE"
 
             setOnClickListener {
 
-                safeRun("GET HEALTH DATA STORE") {
+                safeRun(
+                    "GET HEALTH DATA STORE"
+                ) {
 
                     appendLog(
                         "Calling HealthDataService.getStore()..."
@@ -162,23 +182,17 @@ ${store.javaClass.name}
                         """.trimIndent()
                     )
 
-                    status.text = """
-APP START              OK
-SDK AAR                FOUND
-SDK CLASS              OK
-HEALTH DATA STORE      OK
-
-PERMISSION             NOT TESTED
-
-ENERGY SCORE           --
-SLEEP SCORE            --
-                    """.trimIndent()
+                    updateStatus(
+                        permission = "NOT TESTED"
+                    )
                 }
             }
         }
 
         val button4 = Button(this).apply {
-            text = "4  CHECK PERMISSIONS"
+
+            text =
+                "4  CHECK PERMISSIONS"
 
             setOnClickListener {
 
@@ -196,23 +210,12 @@ SLEEP READ
                             """.trimIndent()
                         )
 
-                        val store = getOrCreateStore()
+                        val store =
+                            getOrCreateStore()
 
                         val granted =
                             store.getGrantedPermissions(
                                 requiredPermissions
-                            )
-
-                        val energyPermission =
-                            Permission.of(
-                                DataTypes.ENERGY_SCORE,
-                                AccessType.READ
-                            )
-
-                        val sleepPermission =
-                            Permission.of(
-                                DataTypes.SLEEP,
-                                AccessType.READ
                             )
 
                         val energyGranted =
@@ -242,30 +245,30 @@ $sleepGranted
 
 ALL REQUIRED:
 $allGranted
-
-Granted count:
-${granted.size}
                             """.trimIndent()
                         )
 
-                        status.text = """
-APP START              OK
-SDK AAR                FOUND
-SDK CLASS              OK
-HEALTH DATA STORE      OK
-
-PERMISSION             ${if (allGranted) "OK" else "MISSING"}
-
-ENERGY PERMISSION      ${if (energyGranted) "GRANTED" else "MISSING"}
-SLEEP PERMISSION       ${if (sleepGranted) "GRANTED" else "MISSING"}
-
-ENERGY SCORE           --
-SLEEP SCORE            --
-                        """.trimIndent()
+                        updateStatus(
+                            permission =
+                                if (allGranted)
+                                    "OK"
+                                else
+                                    "MISSING",
+                            energyPermissionStatus =
+                                if (energyGranted)
+                                    "GRANTED"
+                                else
+                                    "MISSING",
+                            sleepPermissionStatus =
+                                if (sleepGranted)
+                                    "GRANTED"
+                                else
+                                    "MISSING"
+                        )
 
                     } catch (t: Throwable) {
 
-                        showAsyncError(
+                        showError(
                             "CHECK PERMISSIONS",
                             t
                         )
@@ -275,13 +278,18 @@ SLEEP SCORE            --
         }
 
         val button5 = Button(this).apply {
-            text = "5  REQUEST PERMISSIONS"
+
+            text =
+                "5  REQUEST PERMISSIONS"
 
             setOnClickListener {
 
                 lifecycleScope.launch {
 
                     try {
+
+                        val store =
+                            getOrCreateStore()
 
                         appendLog(
                             """
@@ -293,82 +301,38 @@ SLEEP READ
                             """.trimIndent()
                         )
 
-                        val store = getOrCreateStore()
-
                         val before =
                             store.getGrantedPermissions(
                                 requiredPermissions
                             )
 
-                        if (
-                            before.containsAll(
-                                requiredPermissions
-                            )
-                        ) {
+                        val missing =
+                            requiredPermissions
+                                .filterNot {
+                                    before.contains(it)
+                                }
+                                .toSet()
+
+                        if (missing.isNotEmpty()) {
 
                             appendLog(
                                 """
-PERMISSIONS ALREADY GRANTED
+Opening Samsung Health permission UI...
 
-No permission popup required.
+Missing count:
+${missing.size}
                                 """.trimIndent()
                             )
 
-                            status.text = """
-APP START              OK
-SDK AAR                FOUND
-SDK CLASS              OK
-HEALTH DATA STORE      OK
-
-PERMISSION             OK
-
-ENERGY PERMISSION      GRANTED
-SLEEP PERMISSION       GRANTED
-
-ENERGY SCORE           --
-SLEEP SCORE            --
-                            """.trimIndent()
-
-                            return@launch
-                        }
-
-                        val missing =
-                            requiredPermissions
-                                .toMutableSet()
-                                .apply {
-                                    removeAll(before)
-                                }
-
-                        appendLog(
-                            """
-Missing permission count:
-${missing.size}
-
-Opening Samsung Health permission UI...
-                            """.trimIndent()
-                        )
-
-                        val result =
                             store.requestPermissions(
                                 missing,
                                 this@MainActivity
                             )
+                        }
 
                         val after =
                             store.getGrantedPermissions(
                                 requiredPermissions
-                            )
-
-                        val energyPermission =
-                            Permission.of(
-                                DataTypes.ENERGY_SCORE,
-                                AccessType.READ
-                            )
-
-                        val sleepPermission =
-                            Permission.of(
-                                DataTypes.SLEEP,
-                                AccessType.READ
                             )
 
                         val energyGranted =
@@ -388,15 +352,12 @@ Opening Samsung Health permission UI...
 
                         appendLog(
                             """
-REQUEST PERMISSIONS RETURNED
+PERMISSION RESULT
 
-Returned count:
-${result.size}
-
-ENERGY_SCORE READ:
+ENERGY_SCORE:
 $energyGranted
 
-SLEEP READ:
+SLEEP:
 $sleepGranted
 
 ALL REQUIRED:
@@ -404,24 +365,27 @@ $allGranted
                             """.trimIndent()
                         )
 
-                        status.text = """
-APP START              OK
-SDK AAR                FOUND
-SDK CLASS              OK
-HEALTH DATA STORE      OK
-
-PERMISSION             ${if (allGranted) "OK" else "MISSING"}
-
-ENERGY PERMISSION      ${if (energyGranted) "GRANTED" else "MISSING"}
-SLEEP PERMISSION       ${if (sleepGranted) "GRANTED" else "MISSING"}
-
-ENERGY SCORE           --
-SLEEP SCORE            --
-                        """.trimIndent()
+                        updateStatus(
+                            permission =
+                                if (allGranted)
+                                    "OK"
+                                else
+                                    "MISSING",
+                            energyPermissionStatus =
+                                if (energyGranted)
+                                    "GRANTED"
+                                else
+                                    "MISSING",
+                            sleepPermissionStatus =
+                                if (sleepGranted)
+                                    "GRANTED"
+                                else
+                                    "MISSING"
+                        )
 
                     } catch (t: Throwable) {
 
-                        showAsyncError(
+                        showError(
                             "REQUEST PERMISSIONS",
                             t
                         )
@@ -431,74 +395,411 @@ SLEEP SCORE            --
         }
 
         val button6 = Button(this).apply {
-            text = "6  READ ENERGY（下一步）"
+
+            text =
+                "6  READ ENERGY"
 
             setOnClickListener {
 
-                appendLog(
-                    """
-ENERGY READ BLOCKED
+                lifecycleScope.launch {
 
-先完成权限测试。
-                    """.trimIndent()
-                )
+                    try {
+
+                        val store =
+                            getOrCreateStore()
+
+                        ensurePermission(
+                            store,
+                            energyPermission,
+                            "ENERGY_SCORE"
+                        )
+
+                        val today =
+                            LocalDate.now()
+
+                        val yesterday =
+                            today.minusDays(1)
+
+                        appendLog(
+                            """
+ENERGY READ START
+
+Date range:
+$yesterday
+to
+$today
+                            """.trimIndent()
+                        )
+
+                        val request =
+                            DataTypes
+                                .ENERGY_SCORE
+                                .readDataRequestBuilder
+                                .setLocalDateFilter(
+                                    LocalDateFilter.of(
+                                        yesterday,
+                                        today
+                                    )
+                                )
+                                .setOrdering(
+                                    Ordering.DESC
+                                )
+                                .setLimit(10)
+                                .build()
+
+                        val response =
+                            store.readData(
+                                request
+                            )
+
+                        val data =
+                            response.dataList
+
+                        appendLog(
+                            """
+ENERGY RESPONSE OK
+
+Record count:
+${data.size}
+                            """.trimIndent()
+                        )
+
+                        var selectedScore:
+                            Float? = null
+
+                        var selectedDate:
+                            String? = null
+
+                        for (
+                            point in data
+                        ) {
+
+                            val score =
+                                point.getValue(
+                                    DataType
+                                        .EnergyScoreType
+                                        .ENERGY_SCORE
+                                )
+
+                            val localDate =
+                                point
+                                    .startLocalDateTime
+                                    .toLocalDate()
+
+                            appendLog(
+                                """
+ENERGY RECORD
+
+Date:
+$localDate
+
+Score:
+${score ?: "null"}
+
+Update:
+${point.updateTime}
+                                """.trimIndent()
+                            )
+
+                            if (
+                                score != null &&
+                                selectedScore == null
+                            ) {
+
+                                selectedScore =
+                                    score
+
+                                selectedDate =
+                                    localDate.toString()
+                            }
+                        }
+
+                        energyScore =
+                            selectedScore
+
+                        if (
+                            selectedScore != null
+                        ) {
+
+                            appendLog(
+                                """
+ENERGY SELECTED
+
+Score:
+$selectedScore
+
+Date:
+$selectedDate
+                                """.trimIndent()
+                            )
+
+                        } else {
+
+                            appendLog(
+                                """
+ENERGY NO DATA
+
+No non-null Energy Score
+was found for today/yesterday.
+                                """.trimIndent()
+                            )
+                        }
+
+                        updateStatus(
+                            permission = "OK",
+                            energyPermissionStatus =
+                                "GRANTED",
+                            sleepPermissionStatus =
+                                "GRANTED"
+                        )
+
+                    } catch (t: Throwable) {
+
+                        showError(
+                            "READ ENERGY",
+                            t
+                        )
+                    }
+                }
             }
         }
 
         val button7 = Button(this).apply {
-            text = "7  READ SLEEP（下一步）"
+
+            text =
+                "7  READ SLEEP"
 
             setOnClickListener {
 
-                appendLog(
+                lifecycleScope.launch {
+
+                    try {
+
+                        val store =
+                            getOrCreateStore()
+
+                        ensurePermission(
+                            store,
+                            sleepPermission,
+                            "SLEEP"
+                        )
+
+                        val end =
+                            LocalDateTime.now()
+
+                        val start =
+                            end.minusHours(48)
+
+                        appendLog(
+                            """
+SLEEP READ START
+
+Time range:
+$start
+to
+$end
+                            """.trimIndent()
+                        )
+
+                        val request =
+                            DataTypes
+                                .SLEEP
+                                .readDataRequestBuilder
+                                .setLocalTimeFilter(
+                                    LocalTimeFilter.of(
+                                        start,
+                                        end
+                                    )
+                                )
+                                .setOrdering(
+                                    Ordering.DESC
+                                )
+                                .setLimit(20)
+                                .build()
+
+                        val response =
+                            store.readData(
+                                request
+                            )
+
+                        val data =
+                            response.dataList
+
+                        appendLog(
+                            """
+SLEEP RESPONSE OK
+
+Record count:
+${data.size}
+                            """.trimIndent()
+                        )
+
+                        var selectedScore:
+                            Int? = null
+
+                        var selectedTime:
+                            String? = null
+
+                        for (
+                            point in data
+                        ) {
+
+                            val score =
+                                point.getValue(
+                                    DataType
+                                        .SleepType
+                                        .SLEEP_SCORE
+                                )
+
+                            val startTime =
+                                point
+                                    .startLocalDateTime
+
+                            val endTime =
+                                point
+                                    .endLocalDateTime
+
+                            appendLog(
+                                """
+SLEEP RECORD
+
+Start:
+$startTime
+
+End:
+$endTime
+
+Sleep Score:
+${score ?: "null"}
+
+Update:
+${point.updateTime}
+                                """.trimIndent()
+                            )
+
+                            if (
+                                score != null &&
+                                selectedScore == null
+                            ) {
+
+                                selectedScore =
+                                    score
+
+                                selectedTime =
+                                    startTime.toString()
+                            }
+                        }
+
+                        sleepScore =
+                            selectedScore
+
+                        if (
+                            selectedScore != null
+                        ) {
+
+                            appendLog(
+                                """
+SLEEP SELECTED
+
+Score:
+$selectedScore
+
+Start:
+$selectedTime
+                                """.trimIndent()
+                            )
+
+                        } else {
+
+                            appendLog(
+                                """
+SLEEP NO DATA
+
+No non-null Sleep Score
+was found in the last 48 hours.
+                                """.trimIndent()
+                            )
+                        }
+
+                        updateStatus(
+                            permission = "OK",
+                            energyPermissionStatus =
+                                "GRANTED",
+                            sleepPermissionStatus =
+                                "GRANTED"
+                        )
+
+                    } catch (t: Throwable) {
+
+                        showError(
+                            "READ SLEEP",
+                            t
+                        )
+                    }
+                }
+            }
+        }
+
+        val clear =
+            Button(this).apply {
+
+                text =
+                    "清空诊断日志"
+
+                setOnClickListener {
+
+                    log.text = ""
+                }
+            }
+
+        val logTitle =
+            TextView(this).apply {
+
+                text =
+                    "\nDIAGNOSTIC LOG"
+
+                textSize = 18f
+            }
+
+        log =
+            TextView(this).apply {
+
+                text =
                     """
-SLEEP READ BLOCKED
+v0.3.4 启动成功。
 
-先完成权限测试。
+REAL DATA READ
+
+当前目标：
+
+1 APP
+2 SDK
+3 STORE
+4 CHECK PERMISSIONS
+5 REQUEST PERMISSIONS
+6 READ ENERGY
+7 READ SLEEP
+
+Energy:
+今天 + 昨天
+
+Sleep:
+最近 48 小时
+
+无数据保持 --。
                     """.trimIndent()
+
+                textSize = 14f
+
+                setPadding(
+                    0,
+                    dp(10),
+                    0,
+                    dp(50)
                 )
+
+                setTextIsSelectable(true)
             }
-        }
-
-        val clear = Button(this).apply {
-            text = "清空诊断日志"
-
-            setOnClickListener {
-                log.text = ""
-            }
-        }
-
-        val logTitle = TextView(this).apply {
-            text = "\nDIAGNOSTIC LOG"
-            textSize = 18f
-        }
-
-        log = TextView(this).apply {
-
-            text = """
-v0.3.3 启动成功。
-
-本轮目标：
-
-1  测试 APP
-2  测试 SAMSUNG HEALTH SDK
-3  GET HEALTH DATA STORE
-4  CHECK PERMISSIONS
-5  REQUEST PERMISSIONS
-
-只测试：
-
-ENERGY_SCORE READ
-SLEEP READ
-
-步骤 6 / 7 仍然锁定。
-            """.trimIndent()
-
-            textSize = 14f
-            setPadding(0, dp(10), 0, dp(50))
-
-            setTextIsSelectable(true)
-        }
 
         root.addView(title)
         root.addView(version)
@@ -517,22 +818,52 @@ SLEEP READ
         root.addView(logTitle)
         root.addView(log)
 
-        val scroll = ScrollView(this)
+        val scroll =
+            ScrollView(this)
+
         scroll.addView(root)
 
         setContentView(scroll)
     }
 
-    private fun getOrCreateStore(): HealthDataStore {
+    private suspend fun ensurePermission(
+        store: HealthDataStore,
+        permission: Permission,
+        name: String
+    ) {
 
-        val existing = healthStore
+        val granted =
+            store.getGrantedPermissions(
+                setOf(permission)
+            )
 
-        if (existing != null) {
+        if (
+            !granted.contains(
+                permission
+            )
+        ) {
+
+            throw IllegalStateException(
+                "$name READ permission is not granted"
+            )
+        }
+    }
+
+    private fun getOrCreateStore():
+        HealthDataStore {
+
+        val existing =
+            healthStore
+
+        if (
+            existing != null
+        ) {
+
             return existing
         }
 
         appendLog(
-            "HealthDataStore was null. Creating store..."
+            "Creating HealthDataStore..."
         )
 
         val store =
@@ -540,13 +871,54 @@ SLEEP READ
                 applicationContext
             )
 
-        healthStore = store
+        healthStore =
+            store
 
         appendLog(
             "HealthDataStore created successfully."
         )
 
         return store
+    }
+
+    private fun updateStatus(
+        permission: String,
+        energyPermissionStatus: String =
+            "NOT TESTED",
+        sleepPermissionStatus: String =
+            "NOT TESTED"
+    ) {
+
+        val energyText =
+            energyScore
+                ?.let {
+                    String.format(
+                        "%.0f",
+                        it
+                    )
+                }
+                ?: "--"
+
+        val sleepText =
+            sleepScore
+                ?.toString()
+                ?: "--"
+
+        status.text =
+            """
+APP START              OK
+SDK AAR                FOUND
+SDK CLASS              OK
+HEALTH DATA STORE      ${if (healthStore != null) "OK" else "NOT TESTED"}
+
+PERMISSION             $permission
+
+ENERGY PERMISSION      $energyPermissionStatus
+SLEEP PERMISSION       $sleepPermissionStatus
+
+ENERGY SCORE           $energyText
+SLEEP SCORE            $sleepText
+            """.trimIndent()
     }
 
     private fun safeRun(
@@ -558,23 +930,26 @@ SLEEP READ
 
             action()
 
-        } catch (t: Throwable) {
+        } catch (
+            t: Throwable
+        ) {
 
-            showAsyncError(
+            showError(
                 name,
                 t
             )
         }
     }
 
-    private fun showAsyncError(
+    private fun showError(
         name: String,
         throwable: Throwable
     ) {
 
-        val root = rootCause(
-            throwable
-        )
+        val root =
+            rootCause(
+                throwable
+            )
 
         appendLog(
             """
@@ -598,32 +973,35 @@ ${root.message ?: "(no message)"}
             """.trimIndent()
         )
 
-        status.text = """
+        status.text =
+            """
 APP START              OK
+HEALTH DATA STORE      ${if (healthStore != null) "OK" else "NOT TESTED"}
 
 $name
 ERROR
 
 ${root.javaClass.simpleName}
 
-PERMISSION             ERROR
-ENERGY SCORE           --
-SLEEP SCORE            --
-        """.trimIndent()
+ENERGY SCORE           ${energyScore ?: "--"}
+SLEEP SCORE            ${sleepScore ?: "--"}
+            """.trimIndent()
     }
 
     private fun rootCause(
         throwable: Throwable
     ): Throwable {
 
-        var current = throwable
+        var current =
+            throwable
 
         while (
             current.cause != null &&
             current.cause !== current
         ) {
 
-            current = current.cause!!
+            current =
+                current.cause!!
         }
 
         return current
